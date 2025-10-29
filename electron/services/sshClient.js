@@ -105,6 +105,31 @@ class SSHClientService {
     });
   }
 
+  writeFile(connectionId, remotePath, content) {
+    const client = this.ensureConnection(connectionId);
+    return new Promise((resolve, reject) => {
+      client.sftp((err, sftp) => {
+        if (err) {
+          reject(err);
+          return;
+        }
+        const tempPath = `${remotePath}.${Date.now()}.tmp`;
+        const tmpStream = sftp.createWriteStream(tempPath, { encoding: 'utf8', flags: 'w' });
+        tmpStream.on('error', (error) => reject(error));
+        tmpStream.on('finish', () => {
+          sftp.rename(tempPath, remotePath, (renameErr) => {
+            if (renameErr) {
+              sftp.unlink(tempPath, () => reject(renameErr));
+              return;
+            }
+            resolve(true);
+          });
+        });
+        tmpStream.end(content, 'utf8');
+      });
+    });
+  }
+
   executeCommand(connectionId, command) {
     const client = this.ensureConnection(connectionId);
     return new Promise((resolve, reject) => {

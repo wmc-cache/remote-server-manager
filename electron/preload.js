@@ -10,6 +10,8 @@ contextBridge.exposeInMainWorld('api', {
   connect: (config) => invoke('ssh:connect', config),
   listDirectory: (connectionId, remotePath) => invoke('ssh:list-directory', { connectionId, remotePath }),
   readFile: (connectionId, remotePath) => invoke('ssh:read-file', { connectionId, remotePath }),
+  writeFile: (connectionId, remotePath, content) =>
+    invoke('ssh:write-file', { connectionId, remotePath, content }),
   executeCommand: (connectionId, command) => invoke('ssh:execute', { connectionId, command }),
 
   startSync: (payload) => invoke('sync:start', payload),

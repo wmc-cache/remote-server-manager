@@ -18,6 +18,7 @@ export const useMainStore = defineStore('main', {
     isLoadingConnections: false,
     isLoadingRemote: false,
     isSyncing: false,
+    isSavingFile: false,
   }),
   actions: {
     escapeShellArg(value) {
@@ -138,6 +139,34 @@ export const useMainStore = defineStore('main', {
         this.previewFile = { path: remotePath, content };
       } catch (error) {
         this.connectionMessage = this.normalizeError(error);
+      }
+    },
+
+    async saveRemoteFile(newContent) {
+      if (!this.selectedConnectionId || !this.previewFile?.path) {
+        const message = '请先选择需要编辑的远程文件';
+        this.connectionMessage = message;
+        return { ok: false, message };
+      }
+      this.isSavingFile = true;
+      try {
+        const result = await window.api.writeFile(
+          this.selectedConnectionId,
+          this.previewFile.path,
+          newContent,
+        );
+        if (result?.ok === false) {
+          throw new Error(result.message);
+        }
+        this.previewFile = { ...this.previewFile, content: newContent };
+        await this.fetchRemoteDirectory(this.remotePath);
+        return { ok: true };
+      } catch (error) {
+        const message = this.normalizeError(error);
+        this.connectionMessage = message;
+        return { ok: false, message };
+      } finally {
+        this.isSavingFile = false;
       }
     },
 

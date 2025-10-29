@@ -5,6 +5,15 @@
       @close="closeCreateModal"
       @submit="handleCreateConnection"
     />
+    <FileEditorModal
+      :visible="editorVisible"
+      :file="store.previewFile"
+      :saving="store.isSavingFile"
+      :message="editorMessage"
+      :message-type="editorMessageType"
+      @close="closeEditor"
+      @save="handleSaveFile"
+    />
 
     <section v-if="!isDetailView" class="landing">
       <header class="landing__header">
@@ -47,8 +56,16 @@
           @preview="store.previewRemoteFile"
         />
         <article class="panel preview">
-          <header>
+          <header class="preview__header">
             <h2>文件预览</h2>
+            <button
+              v-if="store.previewFile"
+              class="btn btn--ghost"
+              type="button"
+              @click="openEditor"
+            >
+              编辑
+            </button>
           </header>
           <div v-if="!store.previewFile" class="panel__empty">双击文件或点击“预览”查看内容</div>
           <pre v-else class="preview__content">{{ store.previewFile.content }}</pre>
@@ -80,11 +97,15 @@ import RemoteExplorer from './components/RemoteExplorer.vue';
 import TerminalPanel from './components/TerminalPanel.vue';
 import SyncConfigList from './components/SyncConfigList.vue';
 import SyncStatusLog from './components/SyncStatusLog.vue';
+import FileEditorModal from './components/FileEditorModal.vue';
 import { useMainStore } from './store/mainStore';
 
 const store = useMainStore();
 const showCreateModal = ref(false);
 const isDetailView = ref(false);
+const editorVisible = ref(false);
+const editorMessage = ref('');
+const editorMessageType = ref('info');
 
 onMounted(async () => {
   await Promise.all([store.loadConnections(), store.loadSyncMappings()]);
@@ -96,6 +117,16 @@ watch(
   (value) => {
     if (!value) {
       isDetailView.value = false;
+    }
+  },
+);
+
+watch(
+  () => store.previewFile?.path,
+  (value) => {
+    if (!value) {
+      editorVisible.value = false;
+      editorMessage.value = '';
     }
   },
 );
@@ -119,6 +150,20 @@ function openCreateModal() {
 
 function closeCreateModal() {
   showCreateModal.value = false;
+}
+
+function openEditor() {
+  if (!store.previewFile) {
+    return;
+  }
+  editorMessage.value = '';
+  editorMessageType.value = 'info';
+  editorVisible.value = true;
+}
+
+function closeEditor() {
+  editorVisible.value = false;
+  editorMessage.value = '';
 }
 
 async function handleCreateConnection(connection) {
@@ -152,6 +197,7 @@ function handleBackToList() {
   store.previewFile = null;
   store.remotePath = '/';
   store.selectedConnectionId = null;
+  closeEditor();
 }
 
 async function handleSaveSync(mapping) {
@@ -174,6 +220,22 @@ async function handleSaveSync(mapping) {
 
 async function handleStartSync(mapping) {
   await store.startSync(mapping);
+}
+
+async function handleSaveFile(content) {
+  editorMessageType.value = 'info';
+  const result = await store.saveRemoteFile(content);
+  if (result.ok) {
+    editorMessageType.value = 'success';
+    editorMessage.value = '保存成功';
+    setTimeout(() => {
+      editorMessage.value = '';
+      editorVisible.value = false;
+    }, 700);
+  } else {
+    editorMessageType.value = 'error';
+    editorMessage.value = result.message || '保存失败';
+  }
 }
 </script>
 
@@ -298,6 +360,13 @@ async function handleStartSync(mapping) {
   flex-direction: column;
   gap: 12px;
   border: 1px solid rgba(148, 163, 184, 0.16);
+}
+
+.preview__header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
 }
 
 .panel__empty {

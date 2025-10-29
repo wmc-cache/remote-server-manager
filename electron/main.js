@@ -85,6 +85,15 @@ ipcMain.handle('ssh:read-file', async (_event, { connectionId, remotePath }) => 
   return sshClientService.readFile(connectionId, remotePath);
 });
 
+ipcMain.handle('ssh:write-file', async (_event, { connectionId, remotePath, content }) => {
+  try {
+    await sshClientService.writeFile(connectionId, remotePath, content);
+    return { ok: true };
+  } catch (error) {
+    return { ok: false, message: error.message };
+  }
+});
+
 ipcMain.handle('ssh:execute', async (_event, { connectionId, command }) => {
   return sshClientService.executeCommand(connectionId, command);
 });
