@@ -1,0 +1,190 @@
+<template>
+  <section class="panel">
+    <header class="panel__header">
+      <h2>远程文件浏览</h2>
+      <button class="btn" type="button" @click="emit('refresh', currentPath)">刷新</button>
+    </header>
+    <div class="path-bar">
+      <input v-model="editablePath" @keyup.enter="emitPath" />
+      <button class="btn btn--ghost" type="button" @click="goUp">上一级</button>
+    </div>
+    <div v-if="loading" class="panel__empty">加载中...</div>
+    <div v-else class="explorer scroll-area">
+      <div
+        v-for="entry in entries"
+        :key="entry.filename"
+        class="explorer__item"
+        @dblclick="handleOpen(entry)"
+      >
+        <div class="explorer__meta">
+          <span class="explorer__icon">{{ entry.attrs?.isDirectory ? '📁' : '📄' }}</span>
+          <span class="explorer__name">{{ entry.filename }}</span>
+        </div>
+        <div class="explorer__actions">
+          <button v-if="!entry.attrs?.isDirectory" class="btn btn--ghost" type="button" @click="emit('preview', composePath(entry.filename))">
+            预览
+          </button>
+          <span class="explorer__size">{{ formatSize(entry.attrs?.size) }}</span>
+        </div>
+      </div>
+    </div>
+  </section>
+</template>
+
+<script setup>
+import { computed, ref, watch } from 'vue';
+
+const props = defineProps({
+  entries: {
+    type: Array,
+    default: () => [],
+  },
+  currentPath: {
+    type: String,
+    default: '/',
+  },
+  loading: {
+    type: Boolean,
+    default: false,
+  },
+});
+
+const emit = defineEmits(['changePath', 'refresh', 'preview']);
+
+const editablePath = ref(props.currentPath);
+
+watch(
+  () => props.currentPath,
+  (value) => {
+    editablePath.value = value;
+  },
+);
+
+const normalizedCurrent = computed(() => (props.currentPath || '/').replace(/\/+$/, '') || '/');
+
+function composePath(name) {
+  const base = normalizedCurrent.value === '/' ? '' : normalizedCurrent.value;
+  return `${base}/${name}`.replace(/\/+/g, '/');
+}
+
+function goUp() {
+  if (normalizedCurrent.value === '/' || !normalizedCurrent.value) {
+    return;
+  }
+  const segments = normalizedCurrent.value.split('/').filter(Boolean);
+  segments.pop();
+  const next = `/${segments.join('/')}` || '/';
+  emit('changePath', next);
+}
+
+function handleOpen(entry) {
+  if (entry.attrs?.isDirectory) {
+    emit('changePath', composePath(entry.filename));
+  } else {
+    emit('preview', composePath(entry.filename));
+  }
+}
+
+function formatSize(size) {
+  if (!size && size !== 0) {
+    return '';
+  }
+  if (size < 1024) {
+    return `${size}B`;
+  }
+  if (size < 1024 * 1024) {
+    return `${(size / 1024).toFixed(1)}KB`;
+  }
+  return `${(size / (1024 * 1024)).toFixed(1)}MB`;
+}
+
+function emitPath() {
+  emit('changePath', editablePath.value || '/');
+}
+</script>
+
+<style scoped>
+.panel {
+  background: rgba(15, 23, 42, 0.75);
+  border-radius: 12px;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-height: 320px;
+}
+
+.panel__header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.panel__empty {
+  color: #94a3b8;
+}
+
+.path-bar {
+  display: flex;
+  gap: 8px;
+}
+
+.path-bar input {
+  flex: 1;
+  border-radius: 8px;
+  border: 1px solid rgba(148, 163, 184, 0.3);
+  background: rgba(30, 41, 59, 0.8);
+  color: #f8fafc;
+  padding: 8px 10px;
+}
+
+.explorer {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-height: 280px;
+}
+
+.explorer__item {
+  background: rgba(30, 41, 59, 0.8);
+  padding: 10px 12px;
+  border-radius: 8px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.explorer__meta {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.explorer__name {
+  font-weight: 600;
+}
+
+.explorer__actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.explorer__size {
+  color: #94a3b8;
+  font-size: 12px;
+}
+
+.btn {
+  background: #334155;
+  border: none;
+  color: #e2e8f0;
+  border-radius: 6px;
+  padding: 4px 10px;
+}
+
+.btn--ghost {
+  background: transparent;
+  border: 1px solid rgba(148, 163, 184, 0.3);
+}
+</style>

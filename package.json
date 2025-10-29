@@ -1,0 +1,32 @@
+{
+  "name": "remote-server-manager",
+  "version": "0.1.0",
+  "description": "Vue + Electron desktop client for managing remote Linux servers over SSH with syncing capabilities.",
+  "main": "electron/main.js",
+  "author": "",
+  "license": "MIT",
+  "scripts": {
+    "dev": "concurrently -k \"vite\" \"npm:electron:dev\"",
+    "electron:dev": "wait-on tcp:5173 && electron .",
+    "build": "vite build && electron-builder",
+    "preview": "vite preview",
+    "lint": "eslint ."
+  },
+  "dependencies": {
+    "chokidar": "^3.6.0",
+    "electron-store": "^8.1.0",
+    "pinia": "^2.1.7",
+    "ssh2": "^1.15.0",
+    "vue": "^3.4.0"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-vue": "^5.0.0",
+    "concurrently": "^8.2.2",
+    "electron": "^28.3.3",
+    "electron-builder": "^24.10.0",
+    "eslint": "^8.56.0",
+    "eslint-plugin-vue": "^9.19.2",
+    "vite": "^5.0.10",
+    "wait-on": "^7.2.0"
+  }
+}

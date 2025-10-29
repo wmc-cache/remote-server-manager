@@ -1,0 +1,32 @@
+const { contextBridge, ipcRenderer } = require('electron');
+
+const invoke = (channel, payload) => ipcRenderer.invoke(channel, payload);
+
+contextBridge.exposeInMainWorld('api', {
+  listConnections: () => invoke('connections:list'),
+  saveConnection: (connection) => invoke('connections:upsert', connection),
+  deleteConnection: (id) => invoke('connections:delete', id),
+
+  connect: (config) => invoke('ssh:connect', config),
+  listDirectory: (connectionId, remotePath) => invoke('ssh:list-directory', { connectionId, remotePath }),
+  readFile: (connectionId, remotePath) => invoke('ssh:read-file', { connectionId, remotePath }),
+  executeCommand: (connectionId, command) => invoke('ssh:execute', { connectionId, command }),
+
+  startSync: (payload) => invoke('sync:start', payload),
+  stopSync: (syncId) => invoke('sync:stop', syncId),
+  listSyncMappings: () => invoke('sync:list'),
+  saveSyncMapping: (mapping) => invoke('sync:upsert', mapping),
+  deleteSyncMapping: (syncId) => invoke('sync:delete', syncId),
+  pickLocalFolder: () => invoke('sync:pick-local-folder'),
+
+  onSyncLog: (callback) => {
+    const handler = (_event, payload) => callback(payload);
+    ipcRenderer.on('sync:log', handler);
+    return () => ipcRenderer.removeListener('sync:log', handler);
+  },
+
+  onTerminalData: (callback) => {
+    ipcRenderer.on('terminal:data', (_event, data) => callback(data));
+    return () => ipcRenderer.removeAllListeners('terminal:data');
+  },
+});
