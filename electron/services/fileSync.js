@@ -140,9 +140,9 @@ function createSyncService(sshClient) {
     });
 
     emitter.emit('sync:log', { level: 'info', message: `同步任务 ${syncId} 已启动（模式：${preparedConfig.mode}）` });
-
-    // Placeholder for remote→local同步，可在后续接入基于 inotifywait 或 rsync 的方案
-    emitter.emit('sync:log', { level: 'warn', message: '远程→本地同步尚未实现，将在后续版本支持。' });
+    if (preparedConfig.mode !== 'upload') {
+      emitter.emit('sync:log', { level: 'warn', message: '远程→本地同步尚未实现，将在后续版本支持。' });
+    }
 
     return syncId;
   }

@@ -34,7 +34,7 @@ function formatTime(value) {
   display: flex;
   flex-direction: column;
   gap: 12px;
-  max-height: 240px;
+  max-height: 340px;
 }
 
 .log-list {

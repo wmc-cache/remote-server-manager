@@ -20,10 +20,16 @@
       <div class="form__row">
         <label class="form__field">
           <span>同步模式</span>
-          <select v-model="form.mode">
-            <option value="upload">本地 -> 远程</option>
-            <option value="bidirectional">双向 (实验)</option>
-          </select>
+          <div class="mode-group">
+            <label class="mode-option">
+              <input v-model="form.mode" type="radio" value="upload" />
+              <span>本地 → 远程</span>
+            </label>
+            <label class="mode-option mode-option--disabled" title="双向同步尚未实现">
+              <input v-model="form.mode" type="radio" value="bidirectional" disabled />
+              <span>双向同步 (开发中)</span>
+            </label>
+          </div>
         </label>
         <div class="form__field form__field--actions">
           <button class="btn" type="submit" :disabled="isSyncing">保存配置</button>
@@ -33,14 +39,22 @@
 
     <div v-if="!mappings.length" class="panel__empty">当前没有同步任务</div>
     <ul v-else class="panel__list">
-      <li v-for="item in mappings" :key="item.id" class="panel__item">
+      <li
+        v-for="item in mappings"
+        :key="item.id"
+        :class="['panel__item', isActive(item.id) ? 'panel__item--active' : '']"
+      >
         <div class="panel__item-info">
           <strong>{{ item.localPath }}</strong>
           <small>{{ item.remotePath }} · {{ formatMode(item.mode) }}</small>
         </div>
+        <div class="panel__item-status">
+          <span :class="['status-dot', isActive(item.id) ? 'status-dot--on' : '']" />
+          <span class="status-label">{{ isActive(item.id) ? '运行中' : '未启动' }}</span>
+        </div>
         <div class="panel__item-actions">
-          <button class="btn" type="button" @click="emit('start', item)">启动</button>
-          <button class="btn btn--ghost" type="button" @click="emit('stop', item.id)">停止</button>
+          <button class="btn" type="button" :disabled="isActive(item.id)" @click="emit('start', item)">启动</button>
+          <button class="btn btn--ghost" type="button" :disabled="!isActive(item.id)" @click="emit('stop', item.id)">停止</button>
           <button class="btn btn--danger" type="button" @click="emit('remove', item.id)">删除</button>
         </div>
       </li>
@@ -60,15 +74,21 @@ const props = defineProps({
     type: Boolean,
     default: false,
   },
+  activeIds: {
+    type: Array,
+    default: () => [],
+  },
 });
 
 const emit = defineEmits(['save', 'start', 'stop', 'remove']);
 
-const form = reactive({
+const defaultForm = () => ({
   localPath: '',
   remotePath: '',
   mode: 'upload',
 });
+
+const form = reactive(defaultForm());
 
 async function pickLocal() {
   if (!window.api.pickLocalFolder) {
@@ -82,11 +102,15 @@ async function pickLocal() {
 
 function handleSubmit() {
   emit('save', { ...form });
-  form.remotePath = '';
+  Object.assign(form, defaultForm());
 }
 
 function formatMode(mode) {
   return mode === 'bidirectional' ? '双向' : '本地 -> 远程';
+}
+
+function isActive(id) {
+  return props.activeIds.includes(id);
 }
 </script>
 
@@ -138,12 +162,41 @@ select {
   flex: 1;
 }
 
+.mode-group {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.mode-option {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  border-radius: 8px;
+  border: 1px solid rgba(148, 163, 184, 0.3);
+  background: rgba(30, 41, 59, 0.6);
+  color: #f8fafc;
+}
+
+.mode-option input {
+  flex: 0 0 auto;
+  width: 16px;
+  height: 16px;
+}
+
+.mode-option--disabled {
+  opacity: 0.6;
+  border-style: dashed;
+}
+
 .btn {
   background: #2563eb;
   border: none;
   color: #fff;
   border-radius: 8px;
   padding: 8px 12px;
+  cursor: pointer;
 }
 
 .btn--ghost {
@@ -153,6 +206,12 @@ select {
 
 .btn--danger {
   background: #dc2626;
+}
+
+.btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+  pointer-events: none;
 }
 
 .panel__list {
@@ -171,17 +230,50 @@ select {
   display: flex;
   justify-content: space-between;
   gap: 12px;
+  align-items: center;
   flex-wrap: wrap;
+  border: 1px solid transparent;
+}
+
+.panel__item--active {
+  border: 1px solid rgba(74, 222, 128, 0.6);
+  background: linear-gradient(
+    135deg,
+    rgba(34, 197, 94, 0.16),
+    rgba(30, 41, 59, 0.85)
+  );
+  box-shadow: 0 6px 18px rgba(34, 197, 94, 0.18);
 }
 
 .panel__item-info {
   display: flex;
   flex-direction: column;
   gap: 4px;
+  flex: 1 1 auto;
 }
 
 .panel__item-info small {
   color: #94a3b8;
+}
+
+.panel__item-status {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex: 0 0 auto;
+  min-width: 90px;
+  justify-content: flex-start;
+}
+
+.status-label {
+  font-size: 12px;
+  letter-spacing: 0.4px;
+  color: rgba(226, 232, 240, 0.8);
+}
+
+.status-dot--on + .status-label {
+  color: #bbf7d0;
+  font-weight: 600;
 }
 
 .panel__item-actions {
@@ -191,5 +283,19 @@ select {
 
 .panel__empty {
   color: #94a3b8;
+}
+
+.status-dot {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: rgba(148, 163, 184, 0.4);
+  flex: 0 0 auto;
+  margin-right: 6px;
+}
+
+.status-dot--on {
+  background: #4ade80;
+  box-shadow: 0 0 12px rgba(74, 222, 128, 0.75);
 }
 </style>

@@ -1,20 +1,43 @@
 <template>
-  <div class="layout">
-    <aside class="sidebar">
+  <div class="app">
+    <ConnectionForm
+      :visible="showCreateModal"
+      @close="closeCreateModal"
+      @submit="handleCreateConnection"
+    />
+
+    <section v-if="!isDetailView" class="landing">
+      <header class="landing__header">
+        <div>
+          <h1>远程服务器管理</h1>
+          <p>集中管理 SSH 连接、远程文件与同步任务。</p>
+        </div>
+        <button class="btn btn--primary" type="button" @click="openCreateModal">新增连接</button>
+      </header>
+
+      <div v-if="!store.connections.length" class="landing__empty">
+        暂无服务器，请点击“新增连接”完成配置。
+      </div>
       <ServerList
+        v-else
         :connections="store.connections"
         :selected="store.selectedConnectionId"
-        @select="handleConnect"
-        @delete="store.deleteConnection"
+        @select="handleSelectConnection"
+        @delete="handleDeleteConnection"
       />
-      <ConnectionForm @submit="store.saveConnection" />
-    </aside>
-    <main class="main">
-      <section class="status-bar">
-        <span>连接状态：{{ statusText }}</span>
-        <span v-if="store.connectionMessage" class="status-bar__message">{{ store.connectionMessage }}</span>
-      </section>
-      <section class="grid grid--columns">
+    </section>
+
+    <section v-else class="detail">
+      <header class="detail__topbar">
+        <button class="btn btn--ghost" type="button" @click="handleBackToList">← 返回列表</button>
+        <div class="detail__status">
+          <span>连接状态：{{ statusText }}</span>
+          <span v-if="store.connectionMessage" class="detail__status-message">{{ store.connectionMessage }}</span>
+        </div>
+        <button class="btn btn--secondary" type="button" @click="openCreateModal">新增连接</button>
+      </header>
+
+      <section class="detail__grid detail__grid--columns">
         <RemoteExplorer
           :entries="store.remoteEntries"
           :current-path="store.remotePath"
@@ -31,11 +54,13 @@
           <pre v-else class="preview__content">{{ store.previewFile.content }}</pre>
         </article>
       </section>
-      <section class="grid">
+
+      <section class="detail__grid">
         <TerminalPanel :history="store.terminalHistory" @execute="store.executeCommand" />
         <SyncConfigList
           :mappings="store.syncMappings"
           :is-syncing="store.isSyncing"
+          :active-ids="store.activeSyncIds"
           @save="handleSaveSync"
           @start="handleStartSync"
           @stop="store.stopSync"
@@ -43,14 +68,14 @@
         />
         <SyncStatusLog :logs="store.syncLogs" />
       </section>
-    </main>
+    </section>
   </div>
 </template>
 
 <script setup>
-import { computed, onMounted } from 'vue';
-import ServerList from './components/ServerList.vue';
+import { computed, onMounted, ref, watch } from 'vue';
 import ConnectionForm from './components/ConnectionForm.vue';
+import ServerList from './components/ServerList.vue';
 import RemoteExplorer from './components/RemoteExplorer.vue';
 import TerminalPanel from './components/TerminalPanel.vue';
 import SyncConfigList from './components/SyncConfigList.vue';
@@ -58,11 +83,22 @@ import SyncStatusLog from './components/SyncStatusLog.vue';
 import { useMainStore } from './store/mainStore';
 
 const store = useMainStore();
+const showCreateModal = ref(false);
+const isDetailView = ref(false);
 
 onMounted(async () => {
   await Promise.all([store.loadConnections(), store.loadSyncMappings()]);
   store.listenSyncLog();
 });
+
+watch(
+  () => store.selectedConnectionId,
+  (value) => {
+    if (!value) {
+      isDetailView.value = false;
+    }
+  },
+);
 
 const statusText = computed(() => {
   switch (store.connectionStatus) {
@@ -77,8 +113,45 @@ const statusText = computed(() => {
   }
 });
 
-function handleConnect(id) {
+function openCreateModal() {
+  showCreateModal.value = true;
+}
+
+function closeCreateModal() {
+  showCreateModal.value = false;
+}
+
+async function handleCreateConnection(connection) {
+  try {
+    await store.saveConnection(connection);
+    closeCreateModal();
+  } catch (error) {
+    console.error(error);
+  }
+}
+
+function handleSelectConnection(id) {
+  store.selectedConnectionId = id;
+  isDetailView.value = true;
   store.connect(id);
+}
+
+async function handleDeleteConnection(id) {
+  await store.deleteConnection(id);
+  if (!store.connections.length) {
+    store.connectionStatus = 'idle';
+    store.connectionMessage = '';
+  }
+}
+
+function handleBackToList() {
+  isDetailView.value = false;
+  store.connectionStatus = 'idle';
+  store.connectionMessage = '';
+  store.remoteEntries = [];
+  store.previewFile = null;
+  store.remotePath = '/';
+  store.selectedConnectionId = null;
 }
 
 async function handleSaveSync(mapping) {
@@ -105,59 +178,126 @@ async function handleStartSync(mapping) {
 </script>
 
 <style scoped>
-.layout {
+.app {
   min-height: 100vh;
-  display: grid;
-  grid-template-columns: 320px 1fr;
   background: linear-gradient(135deg, #0f172a, #1e293b);
+  color: #e2e8f0;
+  padding: clamp(24px, 6vw, 60px);
+  display: flex;
+  flex-direction: column;
+  gap: clamp(24px, 4vw, 40px);
+}
+
+.landing,
+.detail {
+  max-width: 1200px;
+  width: 100%;
+  margin: 0 auto;
+}
+
+.landing__header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 16px;
+  margin-bottom: 24px;
+}
+
+.landing__header h1 {
+  margin: 0 0 6px;
+  font-size: clamp(28px, 3vw, 36px);
+}
+
+.landing__header p {
+  color: #94a3b8;
+  margin: 0;
+}
+
+.landing__empty {
+  padding: 32px;
+  border-radius: 16px;
+  background: rgba(15, 23, 42, 0.55);
+  border: 1px dashed rgba(148, 163, 184, 0.4);
+  text-align: center;
+  color: #94a3b8;
+}
+
+.btn {
+  padding: 10px 20px;
+  border-radius: 999px;
+  border: none;
+  font-weight: 600;
+  cursor: pointer;
+  transition: transform 0.2s ease;
+}
+
+.btn:active {
+  transform: scale(0.98);
+}
+
+.btn--primary {
+  background: linear-gradient(135deg, #2563eb, #38bdf8);
+  color: #fff;
+}
+
+.btn--secondary {
+  background: rgba(59, 130, 246, 0.25);
+  border: 1px solid rgba(99, 102, 241, 0.5);
+  color: #cbd5f5;
+}
+
+.btn--ghost {
+  background: transparent;
+  border: 1px solid rgba(148, 163, 184, 0.4);
   color: #e2e8f0;
 }
 
-.sidebar {
-  padding: 20px;
-  display: flex;
-  flex-direction: column;
-  gap: 20px;
-  background: rgba(2, 6, 23, 0.65);
-  border-right: 1px solid rgba(148, 163, 184, 0.2);
-}
-
-.main {
-  padding: 24px;
+.detail {
   display: flex;
   flex-direction: column;
   gap: 24px;
 }
 
-.status-bar {
+.detail__topbar {
   display: flex;
-  gap: 12px;
-  padding: 12px 16px;
-  background: rgba(30, 41, 59, 0.7);
-  border-radius: 10px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 16px 20px;
+  background: rgba(15, 23, 42, 0.75);
+  border-radius: 16px;
+  border: 1px solid rgba(148, 163, 184, 0.2);
 }
 
-.status-bar__message {
+.detail__status {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex: 1;
+  justify-content: center;
+}
+
+.detail__status-message {
   color: #f87171;
 }
 
-.grid {
+.detail__grid {
   display: grid;
   gap: 16px;
-  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
 }
 
-.grid--columns {
-  grid-template-columns: 2fr 1fr;
+.detail__grid--columns {
+  grid-template-columns: minmax(0, 2fr) minmax(0, 1fr);
 }
 
 .panel {
   background: rgba(15, 23, 42, 0.75);
-  border-radius: 12px;
-  padding: 16px;
+  border-radius: 16px;
+  padding: 18px;
   display: flex;
   flex-direction: column;
   gap: 12px;
+  border: 1px solid rgba(148, 163, 184, 0.16);
 }
 
 .panel__empty {
@@ -167,21 +307,28 @@ async function handleStartSync(mapping) {
 .preview__content {
   white-space: pre-wrap;
   background: rgba(30, 41, 59, 0.9);
-  border-radius: 8px;
+  border-radius: 10px;
   padding: 12px;
   font-size: 13px;
 }
 
-@media (max-width: 1280px) {
-  .layout {
-    grid-template-columns: 1fr;
+@media (max-width: 1024px) {
+  .landing__header {
+    flex-direction: column;
+    align-items: flex-start;
   }
-  .sidebar {
-    border-right: none;
-    border-bottom: 1px solid rgba(148, 163, 184, 0.2);
-    flex-direction: row;
-    flex-wrap: wrap;
-    gap: 12px;
+
+  .detail__topbar {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .detail__status {
+    justify-content: flex-start;
+  }
+
+  .detail__grid--columns {
+    grid-template-columns: 1fr;
   }
 }
 </style>
