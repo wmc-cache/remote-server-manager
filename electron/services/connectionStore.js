@@ -38,21 +38,46 @@ class ConnectionStore {
   }
 
   getSyncMappings() {
-    return this.store.get('syncMappings');
+    const raw = this.store.get('syncMappings') || [];
+    let mutated = false;
+    const normalized = raw.map((item) => {
+      if (!item.mode) {
+        mutated = true;
+        return { ...item, mode: 'upload' };
+      }
+      return item;
+    });
+    if (mutated) {
+      this.store.set('syncMappings', normalized);
+    }
+    return normalized;
   }
 
   async saveSyncMapping(mapping) {
     const mappings = this.getSyncMappings();
+    const normalize = (payload, previous = {}) => {
+      const timestamp = new Date().toISOString();
+      return {
+        ...previous,
+        ...payload,
+        mode: payload.mode || previous.mode || 'upload',
+        updatedAt: timestamp,
+      };
+    };
     if (mapping.id) {
       const idx = mappings.findIndex((item) => item.id === mapping.id);
       if (idx !== -1) {
-        mappings[idx] = { ...mappings[idx], ...mapping, updatedAt: new Date().toISOString() };
+        mappings[idx] = normalize(mapping, mappings[idx]);
       } else {
-        mappings.push({ ...mapping, updatedAt: new Date().toISOString() });
+        mappings.push(normalize(mapping));
       }
     } else {
       const timestamp = new Date().toISOString();
-      mappings.push({ ...mapping, id: randomUUID(), createdAt: timestamp, updatedAt: timestamp });
+      mappings.push({
+        ...normalize(mapping),
+        id: randomUUID(),
+        createdAt: timestamp,
+      });
     }
     this.store.set('syncMappings', mappings);
     return mappings.find((item) => item.id === mapping.id) || mappings[mappings.length - 1];

@@ -117,7 +117,7 @@ function createSyncService(sshClient) {
       connectionId: config.connectionId,
       localPath: config.localPath,
       remotePath: config.remotePath,
-      mode: config.mode || 'bidirectional',
+      mode: config.mode || 'upload',
     };
 
     if (!fs.existsSync(preparedConfig.localPath)) {
@@ -125,7 +125,7 @@ function createSyncService(sshClient) {
     }
 
     if (activeSyncs.has(syncId)) {
-      await stopSync(syncId);
+      await stopSync(syncId, { silent: true });
     }
 
     // Ensure connection is valid before starting watchers
@@ -147,7 +147,8 @@ function createSyncService(sshClient) {
     return syncId;
   }
 
-  async function stopSync(syncId) {
+  async function stopSync(syncId, options = {}) {
+    const { silent = false } = options;
     const current = activeSyncs.get(syncId);
     if (!current) {
       return;
@@ -159,7 +160,9 @@ function createSyncService(sshClient) {
       clearInterval(current.remotePollTimer);
     }
     activeSyncs.delete(syncId);
-    emitter.emit('sync:log', { level: 'info', message: `同步任务 ${syncId} 已停止。` });
+    if (!silent) {
+      emitter.emit('sync:log', { level: 'info', message: `同步任务 ${syncId} 已停止。` });
+    }
   }
 
   return {

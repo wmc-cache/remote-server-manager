@@ -191,11 +191,11 @@ export const useMainStore = defineStore('main', {
         if (!result.ok) {
           throw new Error(result.message);
         }
-        this.pushLog({ level: 'info', message: `同步任务 ${result.syncId} 已启动`, timestamp: new Date().toISOString() });
         if (!this.activeSyncIds.includes(result.syncId)) {
           this.activeSyncIds = [...this.activeSyncIds, result.syncId];
         }
-        if ((mapping.mode || 'bidirectional') === 'bidirectional') {
+        const effectiveMode = mapping.mode || 'upload';
+        if (effectiveMode !== 'upload') {
           this.pushLog({
             level: 'warn',
             message: '双向同步仍在开发中，当前任务仅会执行本地 → 远程。',
@@ -212,7 +212,6 @@ export const useMainStore = defineStore('main', {
 
     async stopSync(syncId) {
       await window.api.stopSync(syncId);
-      this.pushLog({ level: 'info', message: `同步任务 ${syncId} 已停止`, timestamp: new Date().toISOString() });
       this.activeSyncIds = this.activeSyncIds.filter((item) => item !== syncId);
     },
 
