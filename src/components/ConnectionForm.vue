@@ -4,7 +4,7 @@
       <div class="modal__backdrop" @click="emit('close')"></div>
       <section class="modal__dialog">
         <header class="modal__header">
-          <h2>新增连接</h2>
+          <h2>{{ isEdit ? '编辑连接' : '新增连接' }}</h2>
           <button type="button" class="modal__close" @click="emit('close')">×</button>
         </header>
         <form class="form" @submit.prevent="handleSubmit">
@@ -47,12 +47,16 @@
 </template>
 
 <script setup>
-import { reactive, watch } from 'vue';
+import { reactive, watch, computed } from 'vue';
 
 const props = defineProps({
   visible: {
     type: Boolean,
     default: false,
+  },
+  connection: {
+    type: Object,
+    default: null,
   },
 });
 
@@ -68,10 +72,22 @@ const form = reactive({
   passphrase: '',
 });
 
+const isEdit = computed(() => !!props.connection?.id);
+
+// 当弹窗打开或传入的连接变更时，填充/重置表单
 watch(
-  () => props.visible,
-  (value) => {
-    if (!value) {
+  () => [props.visible, props.connection],
+  () => {
+    if (props.visible && props.connection) {
+      const c = props.connection;
+      form.name = c.name || '';
+      form.host = c.host || '';
+      form.port = c.port || 22;
+      form.username = c.username || '';
+      form.password = c.password || '';
+      form.privateKey = c.privateKey || '';
+      form.passphrase = c.passphrase || '';
+    } else if (!props.visible) {
       form.name = '';
       form.host = '';
       form.port = 22;
@@ -81,10 +97,12 @@ watch(
       form.passphrase = '';
     }
   },
+  { immediate: true, deep: true },
 );
 
 function handleSubmit() {
-  emit('submit', { ...form });
+  const payload = props.connection?.id ? { id: props.connection.id, ...form } : { ...form };
+  emit('submit', payload);
 }
 </script>
 
@@ -107,15 +125,16 @@ function handleSubmit() {
 
 .modal__dialog {
   position: relative;
-  background: #0f172a;
-  border-radius: 16px;
+  background: var(--surface-1);
+  border-radius: var(--radius-lg);
   padding: 24px;
   width: min(540px, 90vw);
   box-shadow: 0 20px 50px rgba(15, 23, 42, 0.45);
   display: flex;
   flex-direction: column;
   gap: 18px;
-  border: 1px solid rgba(148, 163, 184, 0.2);
+  border: 1px solid var(--panel-border);
+  backdrop-filter: var(--panel-blur);
 }
 
 .modal__header {
@@ -151,8 +170,8 @@ function handleSubmit() {
 input,
 textarea {
   border-radius: 8px;
-  border: 1px solid rgba(148, 163, 184, 0.3);
-  background: rgba(30, 41, 59, 0.8);
+  border: 1px solid var(--panel-border);
+  background: var(--surface-2);
   color: #f8fafc;
   padding: 8px 10px;
 }
@@ -170,12 +189,16 @@ textarea {
   border: none;
   font-weight: 600;
   color: #fff;
-  background: linear-gradient(135deg, #2563eb, #38bdf8);
+  background: linear-gradient(135deg, var(--accent-1), var(--accent-2));
 }
 
 .btn--ghost {
   background: transparent;
-  border: 1px solid rgba(148, 163, 184, 0.4);
+  border: 1px solid var(--panel-border);
   color: #e2e8f0;
+}
+
+.btn {
+  /* ensure accent variables apply */
 }
 </style>

@@ -132,13 +132,15 @@ function confirmDelete(entry) {
 
 <style scoped>
 .panel {
-  background: rgba(15, 23, 42, 0.75);
-  border-radius: 12px;
+  background: var(--surface-1);
+  border-radius: var(--radius-md);
   padding: 16px;
   display: flex;
   flex-direction: column;
   gap: 12px;
   min-height: 320px;
+  border: 1px solid var(--panel-border);
+  backdrop-filter: var(--panel-blur);
 }
 
 .panel__header {
@@ -159,8 +161,8 @@ function confirmDelete(entry) {
 .path-bar input {
   flex: 1;
   border-radius: 8px;
-  border: 1px solid rgba(148, 163, 184, 0.3);
-  background: rgba(30, 41, 59, 0.8);
+  border: 1px solid var(--panel-border);
+  background: var(--surface-2);
   color: #f8fafc;
   padding: 8px 10px;
 }
@@ -173,13 +175,15 @@ function confirmDelete(entry) {
 }
 
 .explorer__item {
-  background: rgba(30, 41, 59, 0.8);
+  background: var(--surface-2);
   padding: 10px 12px;
-  border-radius: 8px;
+  border-radius: var(--radius-sm);
   display: flex;
   justify-content: space-between;
   align-items: center;
+  transition: transform 0.12s ease, background 0.2s ease;
 }
+.explorer__item:hover { transform: translateY(-1px); }
 
 .explorer__meta {
   display: flex;
@@ -195,24 +199,31 @@ function confirmDelete(entry) {
   display: flex;
   align-items: center;
   gap: 10px;
+  margin-left: auto;
+  /* fixed width to align action buttons and size across rows */
+  width: 220px;
+  justify-content: flex-end;
 }
 
 .explorer__size {
   color: #94a3b8;
   font-size: 12px;
+  width: 60px;
+  text-align: right;
+  white-space: nowrap;
 }
 
 .btn {
-  background: #334155;
+  background: var(--surface-3);
   border: none;
   color: #e2e8f0;
-  border-radius: 6px;
+  border-radius: 999px;
   padding: 4px 10px;
 }
 
 .btn--ghost {
   background: transparent;
-  border: 1px solid rgba(148, 163, 184, 0.3);
+  border: 1px solid var(--panel-border);
 }
 
 .btn--danger {

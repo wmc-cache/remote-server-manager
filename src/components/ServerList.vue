@@ -10,7 +10,10 @@
         <strong>{{ item.name || item.host }}</strong>
         <small>{{ item.username }}@{{ item.host }}:{{ item.port || 22 }}</small>
       </div>
-      <button class="server-list__delete" type="button" @click.stop="emit('delete', item.id)">删除</button>
+      <div class="server-list__actions">
+        <button class="server-list__edit" type="button" @click.stop="emit('edit', item.id)">编辑</button>
+        <button class="server-list__delete" type="button" @click.stop="emit('delete', item.id)">删除</button>
+      </div>
     </li>
   </ul>
 </template>
@@ -27,7 +30,7 @@ defineProps({
   },
 });
 
-const emit = defineEmits(['select', 'delete']);
+const emit = defineEmits(['select', 'delete', 'edit']);
 </script>
 
 <style scoped>
@@ -40,8 +43,8 @@ const emit = defineEmits(['select', 'delete']);
 }
 
 .server-list__item {
-  background: rgba(15, 23, 42, 0.75);
-  border-radius: 14px;
+  background: var(--surface-1);
+  border-radius: var(--radius-md);
   padding: 16px 18px;
   display: flex;
   justify-content: space-between;
@@ -53,12 +56,12 @@ const emit = defineEmits(['select', 'delete']);
 }
 
 .server-list__item:hover {
-  border-color: rgba(56, 189, 248, 0.6);
+  border-color: var(--accent-2);
   transform: translateY(-2px);
 }
 
 .server-list__item--active {
-  border-color: #38bdf8;
+  border-color: var(--accent-2);
 }
 
 .server-list__meta {
@@ -69,6 +72,17 @@ const emit = defineEmits(['select', 'delete']);
 
 .server-list__meta small {
   color: #94a3b8;
+}
+
+.server-list__actions { display: flex; gap: 8px; }
+
+.server-list__edit {
+  background: transparent;
+  border: 1px solid var(--accent-1);
+  border-radius: 999px;
+  color: #cbd5f5;
+  padding: 6px 14px;
+  cursor: pointer;
 }
 
 .server-list__delete {

@@ -28,7 +28,7 @@ function formatTime(value) {
 
 <style scoped>
 .panel {
-  background: rgba(15, 23, 42, 0.75);
+  background: var(--surface-1);
   border-radius: 12px;
   padding: 16px;
   display: flex;
@@ -49,7 +49,7 @@ function formatTime(value) {
 .log-entry {
   display: flex;
   gap: 12px;
-  background: rgba(30, 41, 59, 0.8);
+  background: var(--surface-2);
   border-radius: 8px;
   padding: 10px;
   font-size: 13px;

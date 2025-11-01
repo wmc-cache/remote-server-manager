@@ -19,6 +19,7 @@ export const useMainStore = defineStore('main', {
     isLoadingRemote: false,
     isSyncing: false,
     isSavingFile: false,
+    theme: 'theme-sky',
   }),
   actions: {
     escapeShellArg(value) {
@@ -279,6 +280,27 @@ export const useMainStore = defineStore('main', {
     async stopSync(syncId) {
       await window.api.stopSync(syncId);
       this.activeSyncIds = this.activeSyncIds.filter((item) => item !== syncId);
+    },
+
+    applyTheme(theme) {
+      const root = document.documentElement;
+      const classes = Array.from(root.classList).filter((c) => c.startsWith('theme-'));
+      classes.forEach((c) => root.classList.remove(c));
+      if (theme) {
+        root.classList.add(theme);
+      }
+    },
+
+    initTheme() {
+      const saved = localStorage.getItem('rsm-theme') || 'theme-sky';
+      this.theme = saved;
+      this.applyTheme(saved);
+    },
+
+    setTheme(theme) {
+      this.theme = theme;
+      localStorage.setItem('rsm-theme', theme);
+      this.applyTheme(theme);
     },
 
     listenSyncLog() {

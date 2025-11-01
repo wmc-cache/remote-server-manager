@@ -116,12 +116,14 @@ function isActive(id) {
 
 <style scoped>
 .panel {
-  background: rgba(15, 23, 42, 0.75);
-  border-radius: 12px;
+  background: var(--surface-1);
+  border-radius: var(--radius-md);
   padding: 16px;
   display: flex;
   flex-direction: column;
   gap: 16px;
+  border: 1px solid var(--panel-border);
+  backdrop-filter: var(--panel-blur);
 }
 
 .form {
@@ -155,8 +157,8 @@ function isActive(id) {
 input,
 select {
   border-radius: 8px;
-  border: 1px solid rgba(148, 163, 184, 0.3);
-  background: rgba(30, 41, 59, 0.8);
+  border: 1px solid var(--panel-border);
+  background: var(--surface-2);
   color: #f8fafc;
   padding: 8px 10px;
   flex: 1;
@@ -174,8 +176,8 @@ select {
   gap: 6px;
   padding: 6px 12px;
   border-radius: 8px;
-  border: 1px solid rgba(148, 163, 184, 0.3);
-  background: rgba(30, 41, 59, 0.6);
+  border: 1px solid var(--panel-border);
+  background: var(--surface-3);
   color: #f8fafc;
 }
 
@@ -188,7 +190,7 @@ select {
 /* reserved style hook */
 
 .btn {
-  background: #2563eb;
+  background: var(--accent-solid);
   border: none;
   color: #fff;
   border-radius: 8px;
@@ -222,22 +224,24 @@ select {
 
 .panel__item {
   padding: 12px;
-  background: rgba(30, 41, 59, 0.8);
-  border-radius: 8px;
+  background: var(--surface-2);
+  border-radius: var(--radius-sm);
   display: flex;
   justify-content: space-between;
   gap: 12px;
   align-items: center;
   flex-wrap: wrap;
   border: 1px solid transparent;
+  transition: transform 0.12s ease, background 0.2s ease;
 }
+.panel__item:hover { transform: translateY(-1px); }
 
 .panel__item--active {
   border: 1px solid rgba(74, 222, 128, 0.6);
   background: linear-gradient(
     135deg,
     rgba(34, 197, 94, 0.16),
-    rgba(30, 41, 59, 0.85)
+    var(--surface-2)
   );
   box-shadow: 0 6px 18px rgba(34, 197, 94, 0.18);
 }

@@ -49,13 +49,15 @@ function formatTime(timestamp) {
 
 <style scoped>
 .panel {
-  background: rgba(15, 23, 42, 0.75);
-  border-radius: 12px;
+  background: var(--surface-1);
+  border-radius: var(--radius-md);
   padding: 16px;
   display: flex;
   flex-direction: column;
   gap: 12px;
   height: 100%;
+  border: 1px solid var(--panel-border);
+  backdrop-filter: var(--panel-blur);
 }
 
 .terminal__form {
@@ -66,14 +68,14 @@ function formatTime(timestamp) {
 .terminal__form input {
   flex: 1;
   border-radius: 8px;
-  border: 1px solid rgba(148, 163, 184, 0.3);
-  background: rgba(30, 41, 59, 0.8);
+  border: 1px solid var(--panel-border);
+  background: var(--surface-2);
   color: #f8fafc;
   padding: 8px 10px;
 }
 
 .btn {
-  background: #2563eb;
+  background: var(--accent-solid);
   border: none;
   color: #fff;
   border-radius: 8px;
@@ -89,8 +91,8 @@ function formatTime(timestamp) {
 }
 
 .terminal__entry {
-  background: rgba(30, 41, 59, 0.8);
-  border-radius: 8px;
+  background: var(--surface-2);
+  border-radius: var(--radius-sm);
   padding: 12px;
   display: flex;
   flex-direction: column;

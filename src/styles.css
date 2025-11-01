@@ -3,11 +3,39 @@
   font-family: 'Helvetica Neue', Arial, sans-serif;
   background-color: #101522;
   color: #f1f5f9;
+
+  /* Accent defaults (Sky/Blue) */
+  --accent-1: #2563eb;
+  --accent-2: #38bdf8;
+  --accent-solid: #2563eb;
+
+  /* Background gradient */
+  --bg-1: #0f172a;
+  --bg-2: #1e293b;
+
+  /* Surfaces & borders */
+  --surface-1: rgba(15, 23, 42, 0.75);
+  --surface-2: rgba(30, 41, 59, 0.8);
+  --surface-3: rgba(30, 41, 59, 0.6);
+  --panel-border: rgba(148, 163, 184, 0.22);
+  --panel-blur: saturate(140%) blur(6px);
+  --accent-glow: rgba(56, 189, 248, 0.25);
+  --radius-lg: 16px;
+  --radius-md: 12px;
+  --radius-sm: 8px;
 }
+
+/* Theme variants (toggle by adding class to <html> or <body>) */
+.theme-sky    { --accent-1: #2563eb; --accent-2: #38bdf8; --accent-solid: #2563eb; --bg-1: #0f172a; --bg-2: #1e293b; --surface-1: rgba(15,23,42,0.75); --surface-2: rgba(30,41,59,0.8); --surface-3: rgba(30,41,59,0.6); --panel-border: rgba(148,163,184,0.22); --accent-glow: rgba(37, 99, 235, 0.28); }
+.theme-violet { --accent-1: #7c3aed; --accent-2: #a78bfa; --accent-solid: #7c3aed; --bg-1: #191131; --bg-2: #2a1b4a; --surface-1: rgba(33, 22, 58, 0.75); --surface-2: rgba(44, 30, 78, 0.82); --surface-3: rgba(44, 30, 78, 0.62); --panel-border: rgba(167, 139, 250, 0.25); --accent-glow: rgba(124, 58, 237, 0.28); }
+.theme-emerald{ --accent-1: #10b981; --accent-2: #34d399; --accent-solid: #10b981; --bg-1: #0b1f1a; --bg-2: #12332a; --surface-1: rgba(12, 31, 26, 0.75); --surface-2: rgba(18, 51, 42, 0.82); --surface-3: rgba(18, 51, 42, 0.62); --panel-border: rgba(52, 211, 153, 0.25); --accent-glow: rgba(16, 185, 129, 0.28); }
+.theme-rose   { --accent-1: #e11d48; --accent-2: #fb7185; --accent-solid: #e11d48; --bg-1: #200f15; --bg-2: #351b25; --surface-1: rgba(48, 20, 30, 0.75); --surface-2: rgba(68, 28, 43, 0.82); --surface-3: rgba(68, 28, 43, 0.62); --panel-border: rgba(251, 113, 133, 0.25); --accent-glow: rgba(225, 29, 72, 0.28); }
+.theme-amber  { --accent-1: #f59e0b; --accent-2: #fbbf24; --accent-solid: #f59e0b; --bg-1: #1f1606; --bg-2: #2f2310; --surface-1: rgba(56, 42, 14, 0.75); --surface-2: rgba(66, 52, 22, 0.82); --surface-3: rgba(66, 52, 22, 0.62); --panel-border: rgba(251, 191, 36, 0.25); --accent-glow: rgba(245, 158, 11, 0.28); }
 
 body {
   margin: 0;
   padding: 0;
+  background: linear-gradient(135deg, var(--bg-1), var(--bg-2));
 }
 
 * {
@@ -24,4 +52,6 @@ input, select, button, textarea {
 
 .scroll-area {
   overflow: auto;
+  scrollbar-width: thin;
+  scrollbar-color: var(--panel-border) transparent;
 }

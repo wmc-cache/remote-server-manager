@@ -107,14 +107,15 @@ function handleSave() {
   position: relative;
   width: min(960px, 90vw);
   max-height: 90vh;
-  background: #0f172a;
-  border-radius: 16px;
+  background: var(--surface-1);
+  border-radius: var(--radius-lg);
   padding: 20px;
   display: flex;
   flex-direction: column;
   gap: 16px;
-  border: 1px solid rgba(148, 163, 184, 0.25);
+  border: 1px solid var(--panel-border);
   box-shadow: 0 22px 55px rgba(15, 23, 42, 0.55);
+  backdrop-filter: var(--panel-blur);
 }
 
 .modal__header {
@@ -149,8 +150,8 @@ function handleSave() {
   width: 100%;
   flex: 1;
   border-radius: 12px;
-  border: 1px solid rgba(148, 163, 184, 0.2);
-  background: rgba(15, 23, 42, 0.8);
+  border: 1px solid var(--panel-border);
+  background: var(--surface-2);
   color: #f8fafc;
   padding: 14px;
   font-family: 'Fira Code', 'Consolas', 'Courier New', monospace;
@@ -186,7 +187,7 @@ function handleSave() {
   padding: 10px 20px;
   border-radius: 8px;
   border: none;
-  background: linear-gradient(135deg, #2563eb, #38bdf8);
+  background: linear-gradient(135deg, var(--accent-1), var(--accent-2));
   color: #fff;
   font-weight: 600;
   cursor: pointer;
@@ -199,7 +200,11 @@ function handleSave() {
 
 .btn--ghost {
   background: transparent;
-  border: 1px solid rgba(148, 163, 184, 0.4);
+  border: 1px solid var(--panel-border);
   color: #e2e8f0;
+}
+
+.btn {
+  /* accent variables consumed above */
 }
 </style>
