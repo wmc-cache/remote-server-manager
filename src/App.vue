@@ -54,6 +54,7 @@
           @change-path="store.fetchRemoteDirectory"
           @refresh="store.fetchRemoteDirectory"
           @preview="store.previewRemoteFile"
+          @delete="handleDeleteFile"
         />
         <article class="panel preview">
           <header class="preview__header">
@@ -235,6 +236,16 @@ async function handleSaveFile(content) {
   } else {
     editorMessageType.value = 'error';
     editorMessage.value = result.message || '保存失败';
+  }
+}
+
+async function handleDeleteFile(payload) {
+  // payload: string or { path, isDir, recursive }
+  const target = typeof payload === 'string' ? { path: payload, isDir: false } : payload;
+  const result = target.isDir ? await store.deleteRemotePath(target) : await store.deleteRemoteFile(target.path);
+  if (!result.ok) {
+    editorMessageType.value = 'error';
+    editorMessage.value = result.message || '删除失败';
   }
 }
 </script>

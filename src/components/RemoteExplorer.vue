@@ -24,6 +24,24 @@
           <button v-if="!entry.attrs?.isDirectory" class="btn btn--ghost" type="button" @click="emit('preview', composePath(entry.filename))">
             预览
           </button>
+          <button
+            v-if="!entry.attrs?.isDirectory"
+            class="btn btn--ghost btn--danger"
+            type="button"
+            title="删除文件"
+            @click="confirmDelete(entry)"
+          >
+            删除
+          </button>
+          <button
+            v-if="entry.attrs?.isDirectory"
+            class="btn btn--ghost btn--danger"
+            type="button"
+            title="删除文件夹"
+            @click="confirmDelete(entry)"
+          >
+            删除
+          </button>
           <span class="explorer__size">{{ formatSize(entry.attrs?.size) }}</span>
         </div>
       </div>
@@ -49,7 +67,7 @@ const props = defineProps({
   },
 });
 
-const emit = defineEmits(['changePath', 'refresh', 'preview']);
+const emit = defineEmits(['changePath', 'refresh', 'preview', 'delete']);
 
 const editablePath = ref(props.currentPath);
 
@@ -100,6 +118,15 @@ function formatSize(size) {
 
 function emitPath() {
   emit('changePath', editablePath.value || '/');
+}
+
+function confirmDelete(entry) {
+  const path = composePath(entry.filename);
+  const isDir = !!entry.attrs?.isDirectory;
+  // eslint-disable-next-line no-alert
+  const ok = window.confirm(isDir ? `确认删除文件夹（含所有内容）：${path} ？` : `确认删除文件：${path} ？`);
+  if (!ok) return;
+  emit('delete', { path, isDir, recursive: true });
 }
 </script>
 
@@ -186,5 +213,10 @@ function emitPath() {
 .btn--ghost {
   background: transparent;
   border: 1px solid rgba(148, 163, 184, 0.3);
+}
+
+.btn--danger {
+  color: #fca5a5;
+  border-color: rgba(239, 68, 68, 0.5);
 }
 </style>

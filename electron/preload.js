@@ -12,6 +12,10 @@ contextBridge.exposeInMainWorld('api', {
   readFile: (connectionId, remotePath) => invoke('ssh:read-file', { connectionId, remotePath }),
   writeFile: (connectionId, remotePath, content) =>
     invoke('ssh:write-file', { connectionId, remotePath, content }),
+  deleteFile: (connectionId, remotePath) =>
+    invoke('ssh:delete-file', { connectionId, remotePath }),
+  deletePath: (connectionId, remotePath, options = {}) =>
+    invoke('ssh:delete-path', { connectionId, remotePath, recursive: options.recursive !== false }),
   executeCommand: (connectionId, command) => invoke('ssh:execute', { connectionId, command }),
 
   startSync: (payload) => invoke('sync:start', payload),

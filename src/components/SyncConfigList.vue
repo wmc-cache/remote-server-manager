@@ -25,9 +25,9 @@
               <input v-model="form.mode" type="radio" value="upload" />
               <span>本地 → 远程</span>
             </label>
-            <label class="mode-option mode-option--disabled" title="双向同步尚未实现">
-              <input v-model="form.mode" type="radio" value="bidirectional" disabled />
-              <span>双向同步 (开发中)</span>
+            <label class="mode-option">
+              <input v-model="form.mode" type="radio" value="bidirectional" />
+              <span>双向同步</span>
             </label>
           </div>
         </label>
@@ -185,10 +185,7 @@ select {
   height: 16px;
 }
 
-.mode-option--disabled {
-  opacity: 0.6;
-  border-style: dashed;
-}
+/* reserved style hook */
 
 .btn {
   background: #2563eb;

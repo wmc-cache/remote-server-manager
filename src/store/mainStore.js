@@ -170,6 +170,50 @@ export const useMainStore = defineStore('main', {
       }
     },
 
+    async deleteRemoteFile(targetPath) {
+      if (!this.selectedConnectionId || !targetPath) {
+        return { ok: false, message: '未选择连接或路径无效' };
+      }
+      try {
+        const result = await window.api.deleteFile(this.selectedConnectionId, targetPath);
+        if (result?.ok === false) {
+          throw new Error(result.message);
+        }
+        if (this.previewFile?.path === targetPath) {
+          this.previewFile = null;
+        }
+        await this.fetchRemoteDirectory(this.remotePath);
+        return { ok: true };
+      } catch (error) {
+        const message = this.normalizeError(error);
+        this.connectionMessage = message;
+        return { ok: false, message };
+      }
+    },
+
+    async deleteRemotePath(payload) {
+      const targetPath = typeof payload === 'string' ? payload : payload?.path;
+      const recursive = typeof payload === 'object' ? payload?.recursive !== false : true;
+      if (!this.selectedConnectionId || !targetPath) {
+        return { ok: false, message: '未选择连接或路径无效' };
+      }
+      try {
+        const result = await window.api.deletePath(this.selectedConnectionId, targetPath, { recursive });
+        if (result?.ok === false) {
+          throw new Error(result.message);
+        }
+        if (this.previewFile?.path && this.previewFile.path.startsWith(targetPath)) {
+          this.previewFile = null;
+        }
+        await this.fetchRemoteDirectory(this.remotePath);
+        return { ok: true };
+      } catch (error) {
+        const message = this.normalizeError(error);
+        this.connectionMessage = message;
+        return { ok: false, message };
+      }
+    },
+
     async executeCommand(command) {
       if (!this.selectedConnectionId || !command) {
         return;
@@ -223,14 +267,7 @@ export const useMainStore = defineStore('main', {
         if (!this.activeSyncIds.includes(result.syncId)) {
           this.activeSyncIds = [...this.activeSyncIds, result.syncId];
         }
-        const effectiveMode = mapping.mode || 'upload';
-        if (effectiveMode !== 'upload') {
-          this.pushLog({
-            level: 'warn',
-            message: '双向同步仍在开发中，当前任务仅会执行本地 → 远程。',
-            timestamp: new Date().toISOString(),
-          });
-        }
+        // 双向同步由主进程负责拉取远端变化并回写本地
         await this.loadSyncMappings();
       } catch (error) {
         this.pushLog({ level: 'error', message: error.message, timestamp: new Date().toISOString() });

@@ -94,6 +94,24 @@ ipcMain.handle('ssh:write-file', async (_event, { connectionId, remotePath, cont
   }
 });
 
+ipcMain.handle('ssh:delete-file', async (_event, { connectionId, remotePath }) => {
+  try {
+    await sshClientService.deleteFile(connectionId, remotePath);
+    return { ok: true };
+  } catch (error) {
+    return { ok: false, message: error.message };
+  }
+});
+
+ipcMain.handle('ssh:delete-path', async (_event, { connectionId, remotePath, recursive }) => {
+  try {
+    await sshClientService.deletePath(connectionId, remotePath, { recursive });
+    return { ok: true };
+  } catch (error) {
+    return { ok: false, message: error.message };
+  }
+});
+
 ipcMain.handle('ssh:execute', async (_event, { connectionId, command }) => {
   return sshClientService.executeCommand(connectionId, command);
 });

@@ -7,7 +7,7 @@
   "license": "MIT",
   "scripts": {
     "dev": "concurrently -k \"vite\" \"npm:electron:dev\"",
-    "electron:dev": "wait-on tcp:5173 && electron .",
+    "electron:dev": "wait-on tcp:5173 && node electron/dev-watch.js",
     "build": "vite build && electron-builder",
     "preview": "vite preview",
     "lint": "eslint ."
