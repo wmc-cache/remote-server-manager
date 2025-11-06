@@ -67,17 +67,27 @@
         <article class="panel preview">
           <header class="preview__header">
             <h2>文件预览</h2>
-            <button
-              v-if="store.previewFile"
-              class="btn btn--ghost"
-              type="button"
-              @click="openEditor"
-            >
-              编辑
-            </button>
+            <div class="header__actions">
+              <button
+                v-if="store.previewFile"
+                class="btn btn--ghost"
+                type="button"
+                @click="openFullscreen"
+              >
+                全屏
+              </button>
+              <button
+                v-if="store.previewFile && store.previewFile.encoding === 'text'"
+                class="btn btn--ghost"
+                type="button"
+                @click="openEditor"
+              >
+                编辑
+              </button>
+            </div>
           </header>
           <div v-if="!store.previewFile" class="panel__empty">双击文件或点击“预览”查看内容</div>
-          <pre v-else class="preview__content">{{ store.previewFile.content }}</pre>
+          <FilePreview v-else :file="store.previewFile" />
         </article>
       </section>
 
@@ -95,6 +105,7 @@
         <SyncStatusLog :logs="store.syncLogs" />
       </section>
     </section>
+    <PreviewFullscreen :visible="fullscreenVisible" :file="store.previewFile" @close="closeFullscreen" />
   </div>
 </template>
 
@@ -109,6 +120,8 @@ import SyncStatusLog from './components/SyncStatusLog.vue';
 import FileEditorModal from './components/FileEditorModal.vue';
 import { useMainStore } from './store/mainStore';
 import ThemePicker from './components/ThemePicker.vue';
+import FilePreview from './components/FilePreview.vue';
+import PreviewFullscreen from './components/PreviewFullscreen.vue';
 
 const store = useMainStore();
 const showCreateModal = ref(false);
@@ -117,6 +130,7 @@ const editorVisible = ref(false);
 const editorMessage = ref('');
 const editorMessageType = ref('info');
 const editingConnection = ref(null);
+const fullscreenVisible = ref(false);
 
 onMounted(async () => {
   await Promise.all([store.loadConnections(), store.loadSyncMappings()]);
@@ -139,6 +153,7 @@ watch(
     if (!value) {
       editorVisible.value = false;
       editorMessage.value = '';
+      fullscreenVisible.value = false;
     }
   },
 );
@@ -190,6 +205,15 @@ function openEditor() {
 function closeEditor() {
   editorVisible.value = false;
   editorMessage.value = '';
+}
+
+function openFullscreen() {
+  if (!store.previewFile) return;
+  fullscreenVisible.value = true;
+}
+
+function closeFullscreen() {
+  fullscreenVisible.value = false;
 }
 
 async function handleCreateConnection(connection) {

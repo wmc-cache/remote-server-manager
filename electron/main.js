@@ -85,6 +85,15 @@ ipcMain.handle('ssh:read-file', async (_event, { connectionId, remotePath }) => 
   return sshClientService.readFile(connectionId, remotePath);
 });
 
+ipcMain.handle('ssh:read-file-binary', async (_event, { connectionId, remotePath }) => {
+  try {
+    const base64 = await sshClientService.readFileBinary(connectionId, remotePath);
+    return { ok: true, base64 };
+  } catch (error) {
+    return { ok: false, message: error.message };
+  }
+});
+
 ipcMain.handle('ssh:write-file', async (_event, { connectionId, remotePath, content }) => {
   try {
     await sshClientService.writeFile(connectionId, remotePath, content);

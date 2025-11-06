@@ -10,6 +10,7 @@ contextBridge.exposeInMainWorld('api', {
   connect: (config) => invoke('ssh:connect', config),
   listDirectory: (connectionId, remotePath) => invoke('ssh:list-directory', { connectionId, remotePath }),
   readFile: (connectionId, remotePath) => invoke('ssh:read-file', { connectionId, remotePath }),
+  readFileBinary: (connectionId, remotePath) => invoke('ssh:read-file-binary', { connectionId, remotePath }),
   writeFile: (connectionId, remotePath, content) =>
     invoke('ssh:write-file', { connectionId, remotePath, content }),
   deleteFile: (connectionId, remotePath) =>

@@ -142,6 +142,24 @@ class SSHClientService {
     });
   }
 
+  async readFileBinary(connectionId, remotePath) {
+    const sftp = await this.getSFTP(connectionId);
+    return new Promise((resolve, reject) => {
+      const stream = sftp.createReadStream(remotePath); // Buffer chunks
+      const chunks = [];
+      stream.on('data', (chunk) => chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk)));
+      stream.on('end', () => {
+        try {
+          const buf = Buffer.concat(chunks);
+          resolve(buf.toString('base64'));
+        } catch (e) {
+          reject(e);
+        }
+      });
+      stream.on('error', (error) => reject(error));
+    });
+  }
+
   async deleteFile(connectionId, remotePath) {
     const sftp = await this.getSFTP(connectionId);
     return new Promise((resolve, reject) => {

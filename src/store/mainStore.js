@@ -135,9 +135,24 @@ export const useMainStore = defineStore('main', {
       if (!this.selectedConnectionId) {
         return;
       }
+      const ext = (remotePath.split('.').pop() || '').toLowerCase();
+      const binaryExts = new Set([
+        'pdf', 'docx', 'xlsx',
+        'png', 'jpg', 'jpeg', 'gif', 'webp', 'svg',
+        'mp3', 'wav', 'ogg', 'm4a',
+        'mp4', 'webm', 'mov'
+      ]);
       try {
+        if (binaryExts.has(ext)) {
+          const result = await window.api.readFileBinary(this.selectedConnectionId, remotePath);
+          if (!result?.ok) {
+            throw new Error(result?.message || '读取文件失败');
+          }
+          this.previewFile = { path: remotePath, content: result.base64, encoding: 'base64' };
+          return;
+        }
         const content = await window.api.readFile(this.selectedConnectionId, remotePath);
-        this.previewFile = { path: remotePath, content };
+        this.previewFile = { path: remotePath, content, encoding: 'text' };
       } catch (error) {
         this.connectionMessage = this.normalizeError(error);
       }
