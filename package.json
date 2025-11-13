@@ -9,6 +9,9 @@
     "dev": "concurrently -k \"vite\" \"npm:electron:dev\"",
     "electron:dev": "wait-on tcp:5173 && node electron/dev-watch.js",
     "build": "vite build && electron-builder",
+    "build:mac": "vite build && electron-builder --mac",
+    "build:win": "vite build && electron-builder --win",
+    "build:mw": "vite build && electron-builder -mw",
     "preview": "vite preview",
     "lint": "eslint ."
   },
@@ -33,5 +36,37 @@
     "eslint-plugin-vue": "^9.19.2",
     "vite": "^5.0.10",
     "wait-on": "^7.2.0"
+  }
+  ,
+  "build": {
+    "appId": "com.rsm.app",
+    "productName": "Remote Server Manager",
+    "asar": true,
+    "directories": {
+      "output": "release"
+    },
+    "npmRebuild": false,
+    "nodeGypRebuild": false,
+    "files": [
+      "dist/**",
+      "electron/**",
+      "node_modules/**",
+      "package.json",
+      "!electron/dev-watch.js",
+      "!**/*.map"
+    ],
+    "mac": {
+      "target": ["dmg", "zip"],
+      "category": "public.app-category.developer-tools"
+    },
+    "win": {
+      "target": ["nsis", "zip"],
+      "artifactName": "${productName}-Setup-${version}.${ext}"
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": true
+    }
   }
 }
