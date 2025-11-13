@@ -6,15 +6,15 @@
     <form class="form" @submit.prevent="handleSubmit">
       <div class="form__row">
         <label class="form__field">
-          <span>本地目录</span>
+          <span>本地路径</span>
           <div class="input-group">
-            <input v-model="form.localPath" placeholder="选择本地目录" />
+            <input v-model="form.localPath" :placeholder="form.kind === 'file' ? '选择本地文件' : '选择本地目录'" />
             <button class="btn btn--ghost" type="button" @click="pickLocal">选择</button>
           </div>
         </label>
         <label class="form__field">
-          <span>远程目录</span>
-          <input v-model="form.remotePath" required placeholder="/var/www/project" />
+          <span>远程路径</span>
+          <input v-model="form.remotePath" required placeholder="/var/www/project 或 /var/www/file.txt" />
         </label>
       </div>
       <div class="form__row">
@@ -28,6 +28,19 @@
             <label class="mode-option">
               <input v-model="form.mode" type="radio" value="bidirectional" />
               <span>双向同步</span>
+            </label>
+          </div>
+        </label>
+        <label class="form__field">
+          <span>同步对象</span>
+          <div class="mode-group">
+            <label class="mode-option">
+              <input v-model="form.kind" type="radio" value="dir" />
+              <span>目录</span>
+            </label>
+            <label class="mode-option">
+              <input v-model="form.kind" type="radio" value="file" />
+              <span>文件</span>
             </label>
           </div>
         </label>
@@ -46,7 +59,7 @@
       >
         <div class="panel__item-info">
           <strong>{{ item.localPath }}</strong>
-          <small>{{ item.remotePath }} · {{ formatMode(item.mode) }}</small>
+          <small>{{ item.remotePath }} · {{ formatMode(item.mode) }} · {{ item.kind === 'file' ? '文件' : '目录' }}</small>
         </div>
         <div class="panel__item-status">
           <span :class="['status-dot', isActive(item.id) ? 'status-dot--on' : '']" />
@@ -82,21 +95,19 @@ const props = defineProps({
 
 const emit = defineEmits(['save', 'start', 'stop', 'remove']);
 
-const defaultForm = () => ({
-  localPath: '',
-  remotePath: '',
-  mode: 'upload',
-});
+const defaultForm = () => ({ localPath: '', remotePath: '', mode: 'upload', kind: 'dir' });
 
 const form = reactive(defaultForm());
 
 async function pickLocal() {
-  if (!window.api.pickLocalFolder) {
+  if (form.kind === 'file' && window.api.pickLocalFile) {
+    const f = await window.api.pickLocalFile();
+    if (f) form.localPath = f;
     return;
   }
-  const result = await window.api.pickLocalFolder();
-  if (result) {
-    form.localPath = result;
+  if (window.api.pickLocalFolder) {
+    const d = await window.api.pickLocalFolder();
+    if (d) form.localPath = d;
   }
 }
 

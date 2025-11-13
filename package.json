@@ -23,6 +23,7 @@
     "electron-store": "^8.1.0",
     "highlight.js": "^11.11.1",
     "marked": "^16.4.1",
+    "monaco-editor": "^0.54.0",
     "pinia": "^2.1.7",
     "ssh2": "^1.15.0",
     "vue": "^3.4.0"
@@ -36,8 +37,7 @@
     "eslint-plugin-vue": "^9.19.2",
     "vite": "^5.0.10",
     "wait-on": "^7.2.0"
-  }
-  ,
+  },
   "build": {
     "appId": "com.rsm.app",
     "productName": "Remote Server Manager",
@@ -56,11 +56,17 @@
       "!**/*.map"
     ],
     "mac": {
-      "target": ["dmg", "zip"],
+      "target": [
+        "dmg",
+        "zip"
+      ],
       "category": "public.app-category.developer-tools"
     },
     "win": {
-      "target": ["nsis", "zip"],
+      "target": [
+        "nsis",
+        "zip"
+      ],
       "artifactName": "${productName}-Setup-${version}.${ext}"
     },
     "nsis": {

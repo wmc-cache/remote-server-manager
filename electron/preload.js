@@ -11,6 +11,8 @@ contextBridge.exposeInMainWorld('api', {
   listDirectory: (connectionId, remotePath) => invoke('ssh:list-directory', { connectionId, remotePath }),
   readFile: (connectionId, remotePath) => invoke('ssh:read-file', { connectionId, remotePath }),
   readFileBinary: (connectionId, remotePath) => invoke('ssh:read-file-binary', { connectionId, remotePath }),
+  statPath: (connectionId, remotePath) => invoke('ssh:stat', { connectionId, remotePath }),
+  downloadFile: (connectionId, remotePath, localPath) => invoke('ssh:download-file', { connectionId, remotePath, localPath }),
   writeFile: (connectionId, remotePath, content) =>
     invoke('ssh:write-file', { connectionId, remotePath, content }),
   deleteFile: (connectionId, remotePath) =>
@@ -18,6 +20,7 @@ contextBridge.exposeInMainWorld('api', {
   deletePath: (connectionId, remotePath, options = {}) =>
     invoke('ssh:delete-path', { connectionId, remotePath, recursive: options.recursive !== false }),
   executeCommand: (connectionId, command) => invoke('ssh:execute', { connectionId, command }),
+  execStream: (connectionId, command) => invoke('ssh:exec-stream', { connectionId, command }),
 
   startSync: (payload) => invoke('sync:start', payload),
   stopSync: (syncId) => invoke('sync:stop', syncId),
@@ -25,6 +28,8 @@ contextBridge.exposeInMainWorld('api', {
   saveSyncMapping: (mapping) => invoke('sync:upsert', mapping),
   deleteSyncMapping: (syncId) => invoke('sync:delete', syncId),
   pickLocalFolder: () => invoke('sync:pick-local-folder'),
+  pickLocalSave: (defaultPath) => invoke('file:pick-save', { defaultPath }),
+  pickLocalFile: () => invoke('sync:pick-local-file'),
 
   onSyncLog: (callback) => {
     const handler = (_event, payload) => callback(payload);

@@ -26,11 +26,13 @@
     <!-- Excel -->
     <VueOfficeExcel v-else-if="type === 'excel'" :src="arrayBuffer" class="excel-wrap" />
 
-    <!-- Markdown -->
-    <div v-else-if="type === 'markdown'" class="markdown-body" v-html="renderedMarkdown" />
-
-    <!-- 纯文本/代码 -->
-    <pre v-else-if="type === 'text'" class="code"><code v-html="highlightedText"></code></pre>
+    <!-- 文本/代码 使用 Monaco 只读预览 -->
+    <MonacoViewer
+      v-else-if="type === 'text' || type === 'markdown'"
+      :value="textContent"
+      :language="monacoLanguage"
+      :fullscreen="fullscreen"
+    />
 
     <!-- 兜底提示 -->
     <div v-else class="empty">暂不支持此类型预览：{{ ext }}</div>
@@ -43,11 +45,9 @@ import { computed } from 'vue';
 import VuePdf from '@tato30/vue-pdf';
 import VueOfficeDocx from '@vue-office/docx';
 import VueOfficeExcel from '@vue-office/excel';
-import 'highlight.js/styles/github-dark.css';
 import '@vue-office/docx/lib/index.css';
 import '@vue-office/excel/lib/index.css';
-import hljs from 'highlight.js';
-import { marked } from 'marked';
+import MonacoViewer from './MonacoViewer.vue';
 
 const props = defineProps({
   file: {
@@ -114,51 +114,32 @@ const arrayBuffer = computed(() => {
   return bytes.buffer;
 });
 
-// 文本/Markdown 渲染
+// 文本内容
 const textContent = computed(() => (file.value?.encoding === 'text' ? file.value?.content || '' : ''));
 
-function escapeHtml(html) {
-  return (html || '').replace(/[&<>"']/g, (ch) => ({
-    '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;',
-  }[ch]));
-}
-
-marked.setOptions({
-  highlight(code, lang) {
-    if (lang && hljs.getLanguage(lang)) {
-      return hljs.highlight(code, { language: lang }).value;
-    }
-    return hljs.highlightAuto(code).value;
-  },
-  breaks: true,
-});
-// 禁用原始 HTML 的直通渲染，做最小逃逸
-marked.use({ renderer: { html: (html) => escapeHtml(html) } });
-
-const renderedMarkdown = computed(() => {
-  if (type.value !== 'markdown') return '';
-  return marked.parse(textContent.value || '');
-});
-
-const highlightedText = computed(() => {
-  if (type.value !== 'text') return '';
+// 根据扩展名推测 Monaco 语言
+const monacoLanguage = computed(() => {
   const e = ext.value;
-  const langGuess = {
-    js: 'javascript', cjs: 'javascript', mjs: 'javascript', ts: 'typescript',
-    json: 'json', yml: 'yaml', yaml: 'yaml', sh: 'bash', bash: 'bash', zsh: 'bash',
-    py: 'python', java: 'java', go: 'go', rs: 'rust', cpp: 'cpp', cxx: 'cpp', cc: 'cpp', c: 'c',
-    html: 'xml', xml: 'xml', css: 'css', scss: 'scss', md: 'markdown',
-    vue: 'xml'
-  }[e];
-  const code = textContent.value || '';
-  try {
-    if (langGuess && hljs.getLanguage(langGuess)) {
-      return hljs.highlight(code, { language: langGuess }).value;
-    }
-    return hljs.highlightAuto(code).value;
-  } catch (_) {
-    return (code || '').replace(/[&<>]/g, (ch) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[ch]));
-  }
+  const map = {
+    js: 'javascript', cjs: 'javascript', mjs: 'javascript', jsx: 'javascript',
+    ts: 'typescript', tsx: 'typescript',
+    json: 'json',
+    css: 'css', scss: 'scss', less: 'less',
+    html: 'html', htm: 'html',
+    md: 'markdown', markdown: 'markdown',
+    vue: 'html',
+    yml: 'yaml', yaml: 'yaml',
+    sh: 'shell', bash: 'shell', zsh: 'shell',
+    py: 'python', java: 'java', go: 'go', rs: 'rust',
+    cpp: 'cpp', cxx: 'cpp', cc: 'cpp', c: 'c',
+    php: 'php', rb: 'ruby', kt: 'kotlin', kts: 'kotlin',
+    sql: 'sql', toml: 'toml', ini: 'ini', cfg: 'ini',
+    xml: 'xml',
+    dockerfile: 'dockerfile', docker: 'dockerfile',
+    ps1: 'powershell',
+    swift: 'swift', scala: 'scala', r: 'r', perl: 'perl', pl: 'perl',
+  };
+  return map[e] || 'plaintext';
 });
 </script>
 
@@ -173,9 +154,6 @@ const highlightedText = computed(() => {
 .preview-media { max-width: 100%; max-height: 70vh; border-radius: 8px; }
 .docx-wrap, .excel-wrap { height: 70vh; overflow: auto; }
 .markdown-body { line-height: 1.6; font-size: 14px; }
-.markdown-body :deep(pre) { background: var(--surface-2); padding: 12px; border-radius: 8px; overflow: auto; }
-.markdown-body :deep(code) { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace; }
-.code { white-space: pre; background: var(--surface-2); border-radius: 8px; padding: 12px; overflow: auto; }
 
 .file-preview.is-fullscreen .preview-media { max-height: 85vh; }
 .file-preview.is-fullscreen .docx-wrap,

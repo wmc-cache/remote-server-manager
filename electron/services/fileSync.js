@@ -399,6 +399,109 @@ function createSyncService(sshClient) {
     return watcher;
   }
 
+  // ---------- File-mode helpers ----------
+  function startLocalFileWatcher(syncId, config, muteSet) {
+    const filePath = path.resolve(config.localPath);
+    const watcher = chokidar.watch(filePath, { ignoreInitial: true, persistent: true });
+    const handleError = (err) => emitter.emit('sync:log', { level: 'error', message: `同步失败: ${err.message}` });
+    watcher
+      .on('add', (p) => {
+        if (muteSet.has('__single__')) { muteSet.delete('__single__'); return; }
+        uploadFile(config.connectionId, p, config.remotePath).catch(handleError);
+      })
+      .on('change', (p) => {
+        if (muteSet.has('__single__')) { muteSet.delete('__single__'); return; }
+        uploadFile(config.connectionId, p, config.remotePath).catch(handleError);
+      })
+      .on('unlink', () => {
+        deleteRemote(config.connectionId, config.remotePath, false).catch(handleError);
+      })
+      .on('error', (err) => emitter.emit('sync:log', { level: 'error', message: `本地监听错误: ${err.message}` }));
+    return watcher;
+  }
+
+  function startRemoteFilePoller(syncId, preparedConfig, muteSet) {
+    const minInterval = preparedConfig.pollMinMs || 1000;
+    const maxInterval = preparedConfig.pollMaxMs || 10000;
+    const shrink = 0.6;
+    const grow = 1.5;
+    const idleRoundsForBackoff = 3;
+    let currentInterval = preparedConfig.initialPollMs || 2000;
+    let idleRounds = 0;
+    let running = false;
+    let lastPollAt = Date.now();
+    let timer = null;
+    let stopped = false;
+
+    const scheduleNext = (ms) => {
+      if (stopped) return null;
+      timer = setTimeout(tick, Math.max(minInterval, Math.min(maxInterval, ms)));
+      return timer;
+    };
+
+    async function statRemote(sftp, p) {
+      return new Promise((resolve) => {
+        sftp.stat(p, (err, attrs) => {
+          if (err) { resolve(null); return; }
+          resolve({ mtimeMs: (attrs?.mtime || 0) * 1000, size: attrs?.size || 0 });
+        });
+      });
+    }
+
+    const tick = async () => {
+      if (running || stopped) { scheduleNext(currentInterval); return; }
+      running = true;
+      const startedAt = Date.now();
+      let changes = 0;
+      try {
+        const localPath = path.resolve(preparedConfig.localPath);
+        let localStat = null;
+        try { localStat = await fs.promises.stat(localPath); } catch (_) { /* not exists */ }
+        const remoteStat = await runWithSFTP(preparedConfig.connectionId, (sftp) => statRemote(sftp, preparedConfig.remotePath));
+
+        if (remoteStat) {
+          const localM = localStat?.mtimeMs || 0;
+          const remoteM = remoteStat.mtimeMs || 0;
+          const sizeDiff = typeof localStat?.size === 'number' && localStat.size !== remoteStat.size;
+          const remoteNewer = remoteM - localM > 500;
+          if (!localStat || sizeDiff || remoteNewer) {
+            changes += 1;
+            muteSet.add('__single__');
+            try {
+              await downloadFile(preparedConfig.connectionId, preparedConfig.remotePath, localPath);
+            } catch (e) {
+              emitter.emit('sync:log', { level: 'error', message: `下载失败: ${e.message}` });
+            } finally {
+              setTimeout(() => muteSet.delete('__single__'), 1200);
+            }
+          }
+        } else if (localStat && (localStat.mtimeMs || 0) < lastPollAt) {
+          // Remote deleted; move local to trash
+          try {
+            await moveToTrash(path.dirname(localPath), localPath);
+            changes += 1;
+          } catch (e) {
+            emitter.emit('sync:log', { level: 'error', message: `移动回收站失败: ${e.message}` });
+          }
+        }
+
+        lastPollAt = Date.now();
+      } catch (err) {
+        emitter.emit('sync:log', { level: 'error', message: `远程轮询失败: ${err.message}` });
+      } finally {
+        running = false;
+        const duration = Date.now() - startedAt;
+        if (changes > 2 || duration > currentInterval * 0.7) { currentInterval = Math.max(minInterval, Math.floor(currentInterval * shrink)); idleRounds = 0; }
+        else if (changes === 0) { idleRounds += 1; if (idleRounds >= idleRoundsForBackoff) { currentInterval = Math.min(maxInterval, Math.floor(currentInterval * grow)); idleRounds = 0; } }
+        else { idleRounds = 0; }
+        scheduleNext(currentInterval);
+      }
+    };
+
+    scheduleNext(currentInterval);
+    return { __rsmCancel: () => { stopped = true; if (timer) clearTimeout(timer); } };
+  }
+
   function startRemotePoller(syncId, preparedConfig, muteSet) {
     // Adaptive interval based on workload
     const isIgnored = preparedConfig.isIgnored || (() => false);
@@ -522,18 +625,27 @@ function createSyncService(sshClient) {
       localPath: config.localPath,
       remotePath: config.remotePath,
       mode: config.mode || 'upload',
+      kind: config.kind || 'dir',
     };
 
     if (!fs.existsSync(preparedConfig.localPath)) {
-      throw new Error('本地目录不存在');
+      throw new Error('本地路径不存在');
     }
+
+    let localStat;
+    try { localStat = fs.statSync(preparedConfig.localPath); } catch (e) { localStat = null; }
+    const isFileMode = preparedConfig.kind === 'file' || (localStat && localStat.isFile());
 
     if (activeSyncs.has(syncId)) {
       await stopSync(syncId, { silent: true });
     }
 
     // Ensure connection is valid before starting watchers
-    await runWithSFTP(preparedConfig.connectionId, (sftp) => ensureRemoteDir(sftp, preparedConfig.remotePath || '.'));
+    if (isFileMode) {
+      await runWithSFTP(preparedConfig.connectionId, (sftp) => ensureRemoteDir(sftp, posixPath.dirname(preparedConfig.remotePath || '.')));
+    } else {
+      await runWithSFTP(preparedConfig.connectionId, (sftp) => ensureRemoteDir(sftp, preparedConfig.remotePath || '.'));
+    }
 
     // Apply transfer concurrency for this connection
     if (typeof config.transferConcurrency === 'number') {
@@ -541,26 +653,30 @@ function createSyncService(sshClient) {
       emitter.emit('sync:log', { level: 'info', message: `传输并发已设置: ${config.transferConcurrency}` });
     }
 
-    // Prepare ignore matcher once
-    const patterns = readSyncIgnore(preparedConfig.localPath);
-    const isIgnored = createIgnoreMatcher(patterns);
-    preparedConfig.isIgnored = isIgnored;
-
     const muteSet = new Set();
-    const watcher = startLocalWatcher(syncId, preparedConfig, muteSet);
-
+    let watcher = null;
     let remotePollTimer = null;
-    if (preparedConfig.mode === 'bidirectional') {
-      remotePollTimer = startRemotePoller(syncId, preparedConfig, muteSet);
+
+    if (isFileMode) {
+      // 单文件同步
+      watcher = startLocalFileWatcher(syncId, preparedConfig, muteSet);
+      if (preparedConfig.mode === 'bidirectional') {
+        remotePollTimer = startRemoteFilePoller(syncId, preparedConfig, muteSet);
+      }
+    } else {
+      // 目录同步
+      const patterns = readSyncIgnore(preparedConfig.localPath);
+      const isIgnored = createIgnoreMatcher(patterns);
+      preparedConfig.isIgnored = isIgnored;
+      watcher = startLocalWatcher(syncId, preparedConfig, muteSet);
+      if (preparedConfig.mode === 'bidirectional') {
+        remotePollTimer = startRemotePoller(syncId, preparedConfig, muteSet);
+      }
     }
 
-    activeSyncs.set(syncId, {
-      watcher,
-      config: preparedConfig,
-      remotePollTimer,
-    });
+    activeSyncs.set(syncId, { watcher, config: preparedConfig, remotePollTimer });
 
-    emitter.emit('sync:log', { level: 'info', message: `同步任务 ${syncId} 已启动（模式：${preparedConfig.mode}）` });
+    emitter.emit('sync:log', { level: 'info', message: `同步任务 ${syncId} 已启动（模式：${preparedConfig.mode}，对象：${isFileMode ? '文件' : '目录'}）` });
 
     return syncId;
   }

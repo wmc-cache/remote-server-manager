@@ -160,6 +160,40 @@ class SSHClientService {
     });
   }
 
+  async statPath(connectionId, remotePath) {
+    const sftp = await this.getSFTP(connectionId);
+    return new Promise((resolve, reject) => {
+      sftp.stat(remotePath, (err, attrs) => {
+        if (err) {
+          const notFound = err.code === 2 || /no such file/i.test(err.message || '');
+          if (notFound) { resolve(null); return; }
+          reject(err);
+          return;
+        }
+        const result = {
+          size: attrs?.size,
+          mtimeSec: attrs?.mtime || 0,
+          mtimeMs: (attrs?.mtime || 0) * 1000,
+          isDirectory: attrs?.isDirectory && attrs.isDirectory(),
+        };
+        resolve(result);
+      });
+    });
+  }
+
+  async downloadFile(connectionId, remotePath, localPath) {
+    const sftp = await this.getSFTP(connectionId);
+    return new Promise((resolve, reject) => {
+      sftp.fastGet(remotePath, localPath, (err) => {
+        if (err) {
+          reject(err);
+          return;
+        }
+        resolve(true);
+      });
+    });
+  }
+
   async deleteFile(connectionId, remotePath) {
     const sftp = await this.getSFTP(connectionId);
     return new Promise((resolve, reject) => {

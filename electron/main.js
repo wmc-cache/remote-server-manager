@@ -1,4 +1,5 @@
 const path = require('path');
+const { randomUUID } = require('crypto');
 const { app, BrowserWindow, ipcMain, dialog } = require('electron');
 const ConnectionStore = require('./services/connectionStore');
 const SSHClientService = require('./services/sshClient');
@@ -94,6 +95,15 @@ ipcMain.handle('ssh:read-file-binary', async (_event, { connectionId, remotePath
   }
 });
 
+ipcMain.handle('ssh:stat', async (_event, { connectionId, remotePath }) => {
+  try {
+    const stat = await sshClientService.statPath(connectionId, remotePath);
+    return { ok: true, stat };
+  } catch (error) {
+    return { ok: false, message: error.message };
+  }
+});
+
 ipcMain.handle('ssh:write-file', async (_event, { connectionId, remotePath, content }) => {
   try {
     await sshClientService.writeFile(connectionId, remotePath, content);
@@ -112,6 +122,15 @@ ipcMain.handle('ssh:delete-file', async (_event, { connectionId, remotePath }) =
   }
 });
 
+ipcMain.handle('ssh:download-file', async (_event, { connectionId, remotePath, localPath }) => {
+  try {
+    await sshClientService.downloadFile(connectionId, remotePath, localPath);
+    return { ok: true };
+  } catch (error) {
+    return { ok: false, message: error.message };
+  }
+});
+
 ipcMain.handle('ssh:delete-path', async (_event, { connectionId, remotePath, recursive }) => {
   try {
     await sshClientService.deletePath(connectionId, remotePath, { recursive });
@@ -123,6 +142,48 @@ ipcMain.handle('ssh:delete-path', async (_event, { connectionId, remotePath, rec
 
 ipcMain.handle('ssh:execute', async (_event, { connectionId, command }) => {
   return sshClientService.executeCommand(connectionId, command);
+});
+
+// Streaming execution: emits 'terminal:data' events with { execId, type, data|code }
+ipcMain.handle('ssh:exec-stream', async (_event, { connectionId, command }) => {
+  return new Promise((resolve, reject) => {
+    try {
+      const execId = randomUUID();
+      const client = sshClientService.ensureConnection(connectionId);
+      client.exec(command, (err, stream) => {
+        if (err) {
+          reject(err);
+          return;
+        }
+        // announce start
+        if (mainWindow && !mainWindow.isDestroyed()) {
+          mainWindow.webContents.send('terminal:data', { execId, type: 'start', command });
+        }
+        stream
+          .on('data', (chunk) => {
+            const data = chunk?.toString?.() ?? String(chunk);
+            if (mainWindow && !mainWindow.isDestroyed()) {
+              mainWindow.webContents.send('terminal:data', { execId, type: 'stdout', data });
+            }
+          })
+          .stderr.on('data', (chunk) => {
+            const data = chunk?.toString?.() ?? String(chunk);
+            if (mainWindow && !mainWindow.isDestroyed()) {
+              mainWindow.webContents.send('terminal:data', { execId, type: 'stderr', data });
+            }
+          });
+        stream.on('close', (code) => {
+          if (mainWindow && !mainWindow.isDestroyed()) {
+            mainWindow.webContents.send('terminal:data', { execId, type: 'end', code });
+          }
+        });
+        // return immediately with execId
+        resolve({ ok: true, execId });
+      });
+    } catch (e) {
+      reject(e);
+    }
+  });
 });
 
 ipcMain.handle('sync:start', async (_event, payload) => {
@@ -149,8 +210,22 @@ ipcMain.handle('sync:pick-local-folder', async () => {
   return result.filePaths[0];
 });
 
+ipcMain.handle('sync:pick-local-file', async () => {
+  const result = await dialog.showOpenDialog({
+    properties: ['openFile'],
+  });
+  if (result.canceled) return null;
+  return result.filePaths[0];
+});
+
 ipcMain.handle('sync:list', async () => {
   return connectionStore.getSyncMappings();
+});
+
+ipcMain.handle('file:pick-save', async (_event, { defaultPath } = {}) => {
+  const result = await dialog.showSaveDialog({ defaultPath });
+  if (result.canceled) return null;
+  return result.filePath;
 });
 
 ipcMain.handle('sync:upsert', async (_event, mapping) => {

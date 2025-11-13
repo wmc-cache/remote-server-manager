@@ -20,6 +20,10 @@ export const useMainStore = defineStore('main', {
     isSyncing: false,
     isSavingFile: false,
     theme: 'theme-sky',
+    previewWatchTimer: null,
+    previewWatchStat: null,
+    // execId -> { stdoutBuf: string, stderrBuf: string, timer: any, ended: boolean, pendingCode: number|null }
+    terminalStreams: {},
   }),
   actions: {
     escapeShellArg(value) {
@@ -131,10 +135,11 @@ export const useMainStore = defineStore('main', {
       }
     },
 
-    async previewRemoteFile(remotePath) {
+    async previewRemoteFile(remotePath, options = {}) {
       if (!this.selectedConnectionId) {
         return;
       }
+      const fromWatcher = options.fromWatcher === true;
       const ext = (remotePath.split('.').pop() || '').toLowerCase();
       const binaryExts = new Set([
         'pdf', 'docx', 'xlsx',
@@ -149,13 +154,56 @@ export const useMainStore = defineStore('main', {
             throw new Error(result?.message || '读取文件失败');
           }
           this.previewFile = { path: remotePath, content: result.base64, encoding: 'base64' };
+          if (!fromWatcher) this.startPreviewWatch(remotePath);
           return;
         }
         const content = await window.api.readFile(this.selectedConnectionId, remotePath);
         this.previewFile = { path: remotePath, content, encoding: 'text' };
+        if (!fromWatcher) this.startPreviewWatch(remotePath);
       } catch (error) {
         this.connectionMessage = this.normalizeError(error);
       }
+    },
+
+    stopPreviewWatch() {
+      if (this.previewWatchTimer) {
+        clearInterval(this.previewWatchTimer);
+        this.previewWatchTimer = null;
+      }
+      this.previewWatchStat = null;
+    },
+
+    async startPreviewWatch(remotePath) {
+      this.stopPreviewWatch();
+      if (!this.selectedConnectionId || !remotePath) return;
+      const connectionId = this.selectedConnectionId;
+      const check = async () => {
+        try {
+          const { stat } = await window.api.statPath(connectionId, remotePath);
+          if (!stat) {
+            // 文件不存在，停止并清空
+            this.stopPreviewWatch();
+            if (this.previewFile?.path === remotePath) {
+              this.previewFile = null;
+            }
+            return;
+          }
+          const last = this.previewWatchStat || {};
+          if (!last.mtimeMs || stat.mtimeMs !== last.mtimeMs || stat.size !== last.size) {
+            this.previewWatchStat = { mtimeMs: stat.mtimeMs, size: stat.size };
+            // 刷新内容，但不重启 watcher
+            await this.previewRemoteFile(remotePath, { fromWatcher: true });
+          }
+        } catch (e) {
+          // 忽略临时错误
+        }
+      };
+      // 初始化一次 stat
+      try {
+        const { stat } = await window.api.statPath(connectionId, remotePath);
+        if (stat) this.previewWatchStat = { mtimeMs: stat.mtimeMs, size: stat.size };
+      } catch (_) {}
+      this.previewWatchTimer = setInterval(check, 2000);
     },
 
     async saveRemoteFile(newContent) {
@@ -197,6 +245,7 @@ export const useMainStore = defineStore('main', {
         }
         if (this.previewFile?.path === targetPath) {
           this.previewFile = null;
+          this.stopPreviewWatch();
         }
         await this.fetchRemoteDirectory(this.remotePath);
         return { ok: true };
@@ -220,6 +269,7 @@ export const useMainStore = defineStore('main', {
         }
         if (this.previewFile?.path && this.previewFile.path.startsWith(targetPath)) {
           this.previewFile = null;
+          this.stopPreviewWatch();
         }
         await this.fetchRemoteDirectory(this.remotePath);
         return { ok: true };
@@ -231,11 +281,29 @@ export const useMainStore = defineStore('main', {
     },
 
     async executeCommand(command) {
-      if (!this.selectedConnectionId || !command) {
-        return;
-      }
+      if (!this.selectedConnectionId || !command) return;
       const cwd = this.remotePath || initialRemotePath;
       const prepared = `cd ${this.escapeShellArg(cwd)} && ${command}`;
+      if (window.api.execStream && window.api.onTerminalData) {
+        try {
+          const result = await window.api.execStream(this.selectedConnectionId, prepared);
+          if (result?.ok && result.execId) {
+            const entry = {
+              id: result.execId,
+              command,
+              stdout: '',
+              stderr: '',
+              code: null,
+              timestamp: new Date().toISOString(),
+            };
+            this.terminalHistory.unshift(entry);
+            this.terminalHistory = this.terminalHistory.slice(0, 100);
+            return;
+          }
+        } catch (e) {
+          // fallback to non-streaming
+        }
+      }
       const result = await window.api.executeCommand(this.selectedConnectionId, prepared);
       this.terminalHistory.unshift({
         command,
@@ -245,6 +313,22 @@ export const useMainStore = defineStore('main', {
         timestamp: new Date().toISOString(),
       });
       this.terminalHistory = this.terminalHistory.slice(0, 100);
+    },
+
+    async downloadRemoteFile(remotePath) {
+      if (!this.selectedConnectionId || !remotePath) return;
+      try {
+        const defaultName = (remotePath.split('/').pop() || 'download');
+        const localPath = await window.api.pickLocalSave?.(defaultName);
+        if (!localPath) return;
+        const result = await window.api.downloadFile(this.selectedConnectionId, remotePath, localPath);
+        if (result?.ok === false) {
+          throw new Error(result.message);
+        }
+        this.pushLog({ level: 'info', message: `已下载: ${remotePath} -> ${localPath}`, timestamp: new Date().toISOString() });
+      } catch (error) {
+        this.connectionMessage = this.normalizeError(error);
+      }
     },
 
     async loadSyncMappings() {
@@ -324,6 +408,70 @@ export const useMainStore = defineStore('main', {
       }
       window.api.onSyncLog((entry) => {
         this.pushLog({ ...entry, timestamp: new Date().toISOString() });
+      });
+    },
+
+    listenTerminalData() {
+      if (!window.api.onTerminalData) return;
+      const perTick = 3; // characters per 33ms
+      const tick = (id) => {
+        const stream = this.terminalStreams[id];
+        if (!stream) return;
+        const idx = this.terminalHistory.findIndex((i) => i.id === id);
+        if (idx === -1) { clearInterval(stream.timer); delete this.terminalStreams[id]; return; }
+        const entry = this.terminalHistory[idx];
+        let changed = false;
+        for (let n = 0; n < perTick; n += 1) {
+          let ch = '';
+          if (stream.stdoutBuf && stream.stdoutBuf.length) {
+            ch = stream.stdoutBuf.slice(0, 1);
+            stream.stdoutBuf = stream.stdoutBuf.slice(1);
+            entry.stdout = (entry.stdout || '') + ch;
+            changed = true;
+          } else if (stream.stderrBuf && stream.stderrBuf.length) {
+            ch = stream.stderrBuf.slice(0, 1);
+            stream.stderrBuf = stream.stderrBuf.slice(1);
+            entry.stderr = (entry.stderr || '') + ch;
+            changed = true;
+          } else {
+            break;
+          }
+        }
+        if (changed) {
+          // force reactivity
+          this.terminalHistory.splice(idx, 1, { ...entry });
+        }
+        if (!stream.stdoutBuf && !stream.stderrBuf && stream.ended) {
+          clearInterval(stream.timer);
+          stream.timer = null;
+          if (typeof stream.pendingCode === 'number') {
+            this.terminalHistory.splice(idx, 1, { ...entry, code: stream.pendingCode, timestamp: new Date().toISOString() });
+          }
+          delete this.terminalStreams[id];
+        }
+      };
+
+      window.api.onTerminalData((payload) => {
+        const { execId, type, data, code } = payload || {};
+        if (!execId) return;
+        // Ensure entry exists
+        const idx = this.terminalHistory.findIndex((i) => i.id === execId);
+        if (idx === -1) return;
+        if (!this.terminalStreams[execId]) {
+          this.terminalStreams[execId] = { stdoutBuf: '', stderrBuf: '', timer: null, ended: false, pendingCode: null };
+        }
+        const stream = this.terminalStreams[execId];
+        if (type === 'stdout') {
+          stream.stdoutBuf += (data || '');
+        } else if (type === 'stderr') {
+          stream.stderrBuf += (data || '');
+        } else if (type === 'end') {
+          stream.ended = true;
+          stream.pendingCode = typeof code === 'number' ? code : null;
+        }
+        if (!stream.timer) {
+          stream.timer = setInterval(() => tick(execId), 33);
+        }
       });
     },
   },

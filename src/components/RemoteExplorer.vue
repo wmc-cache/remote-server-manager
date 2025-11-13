@@ -26,6 +26,15 @@
           </button>
           <button
             v-if="!entry.attrs?.isDirectory"
+            class="btn btn--ghost"
+            type="button"
+            title="下载到本地"
+            @click.stop="emit('download', composePath(entry.filename))"
+          >
+            下载
+          </button>
+          <button
+            v-if="!entry.attrs?.isDirectory"
             class="btn btn--ghost btn--danger"
             type="button"
             title="删除文件"
@@ -67,7 +76,7 @@ const props = defineProps({
   },
 });
 
-const emit = defineEmits(['changePath', 'refresh', 'preview', 'delete']);
+const emit = defineEmits(['changePath', 'refresh', 'preview', 'download', 'delete']);
 
 const editablePath = ref(props.currentPath);
 
@@ -201,7 +210,7 @@ function confirmDelete(entry) {
   gap: 10px;
   margin-left: auto;
   /* fixed width to align action buttons and size across rows */
-  width: 220px;
+  width: 280px;
   justify-content: flex-end;
 }
 

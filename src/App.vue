@@ -62,20 +62,13 @@
           @change-path="store.fetchRemoteDirectory"
           @refresh="store.fetchRemoteDirectory"
           @preview="store.previewRemoteFile"
+          @download="store.downloadRemoteFile"
           @delete="handleDeleteFile"
         />
         <article class="panel preview">
           <header class="preview__header">
             <h2>文件预览</h2>
             <div class="header__actions">
-              <button
-                v-if="store.previewFile"
-                class="btn btn--ghost"
-                type="button"
-                @click="openFullscreen"
-              >
-                全屏
-              </button>
               <button
                 v-if="store.previewFile && store.previewFile.encoding === 'text'"
                 class="btn btn--ghost"
@@ -135,6 +128,7 @@ const fullscreenVisible = ref(false);
 onMounted(async () => {
   await Promise.all([store.loadConnections(), store.loadSyncMappings()]);
   store.listenSyncLog();
+  store.listenTerminalData?.();
   store.initTheme?.();
 });
 
@@ -154,6 +148,7 @@ watch(
       editorVisible.value = false;
       editorMessage.value = '';
       fullscreenVisible.value = false;
+      store.stopPreviewWatch?.();
     }
   },
 );

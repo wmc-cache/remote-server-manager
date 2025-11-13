@@ -45,6 +45,10 @@ class ConnectionStore {
         mutated = true;
         return { ...item, mode: 'upload' };
       }
+      if (!item.kind) {
+        mutated = true;
+        return { ...item, kind: 'dir' };
+      }
       return item;
     });
     if (mutated) {
@@ -61,6 +65,7 @@ class ConnectionStore {
         ...previous,
         ...payload,
         mode: payload.mode || previous.mode || 'upload',
+        kind: payload.kind || previous.kind || 'dir',
         updatedAt: timestamp,
       };
     };

@@ -2,20 +2,24 @@
   <Teleport to="body">
     <div v-if="visible" class="modal">
       <div class="modal__backdrop" @click="emit('close')"></div>
-      <section class="modal__dialog">
+      <section :class="['modal__dialog', { 'modal__dialog--fullscreen': fullscreen }]">
         <header class="modal__header">
           <div class="modal__title">
             <h2>编辑文件</h2>
             <p>{{ file?.path }}</p>
           </div>
-          <button type="button" class="modal__close" @click="emit('close')">×</button>
+          <div class="modal__actions">
+            <button class="btn btn--ghost" type="button" @click="toggleFullscreen">
+              {{ fullscreen ? '退出全屏' : '全屏' }}
+            </button>
+            <button type="button" class="modal__close" @click="emit('close')">×</button>
+          </div>
         </header>
-        <textarea
+        <MonacoEditor
           v-model="localContent"
-          class="modal__textarea"
-          spellcheck="false"
-          rows="18"
-        ></textarea>
+          :language="monacoLanguage"
+          :read-only="false"
+        />
         <footer class="modal__footer">
           <span v-if="message" :class="['modal__message', `modal__message--${messageType}`]">
             {{ message }}
@@ -33,7 +37,8 @@
 </template>
 
 <script setup>
-import { ref, watch } from 'vue';
+import { computed, ref, watch, onBeforeUnmount } from 'vue';
+import MonacoEditor from './MonacoEditor.vue';
 
 const props = defineProps({
   visible: {
@@ -61,6 +66,32 @@ const props = defineProps({
 const emit = defineEmits(['close', 'save']);
 
 const localContent = ref('');
+const fullscreen = ref(false);
+
+const monacoLanguage = computed(() => {
+  const path = props.file?.path || '';
+  const e = (path.split('.').pop() || '').toLowerCase();
+  const map = {
+    js: 'javascript', cjs: 'javascript', mjs: 'javascript', jsx: 'javascript',
+    ts: 'typescript', tsx: 'typescript',
+    json: 'json',
+    css: 'css', scss: 'scss', less: 'less',
+    html: 'html', htm: 'html',
+    md: 'markdown', markdown: 'markdown',
+    vue: 'html',
+    yml: 'yaml', yaml: 'yaml',
+    sh: 'shell', bash: 'shell', zsh: 'shell',
+    py: 'python', java: 'java', go: 'go', rs: 'rust',
+    cpp: 'cpp', cxx: 'cpp', cc: 'cpp', c: 'c',
+    php: 'php', rb: 'ruby', kt: 'kotlin', kts: 'kotlin',
+    sql: 'sql', toml: 'toml', ini: 'ini', cfg: 'ini',
+    xml: 'xml',
+    dockerfile: 'dockerfile', docker: 'dockerfile',
+    ps1: 'powershell',
+    swift: 'swift', scala: 'scala', r: 'r', perl: 'perl', pl: 'perl',
+  };
+  return map[e] || 'plaintext';
+});
 
 watch(
   () => props.visible,
@@ -84,6 +115,26 @@ watch(
 function handleSave() {
   emit('save', localContent.value);
 }
+
+function toggleFullscreen() {
+  fullscreen.value = !fullscreen.value;
+  document.body.style.overflow = fullscreen.value ? 'hidden' : '';
+}
+
+onBeforeUnmount(() => {
+  document.body.style.overflow = '';
+});
+
+// 关闭弹窗时确保退出全屏并恢复滚动
+watch(
+  () => props.visible,
+  (v) => {
+    if (!v) {
+      fullscreen.value = false;
+      document.body.style.overflow = '';
+    }
+  },
+);
 </script>
 
 <style scoped>
@@ -125,6 +176,8 @@ function handleSave() {
   gap: 12px;
 }
 
+.modal__actions { display: flex; gap: 8px; align-items: center; }
+
 .modal__title h2 {
   margin: 0 0 6px;
   font-size: 22px;
@@ -146,18 +199,7 @@ function handleSave() {
   cursor: pointer;
 }
 
-.modal__textarea {
-  width: 100%;
-  flex: 1;
-  border-radius: 12px;
-  border: 1px solid var(--panel-border);
-  background: var(--surface-2);
-  color: #f8fafc;
-  padding: 14px;
-  font-family: 'Fira Code', 'Consolas', 'Courier New', monospace;
-  resize: vertical;
-  min-height: 300px;
-}
+.modal__textarea { display: none; }
 
 .modal__footer {
   display: flex;
@@ -206,5 +248,18 @@ function handleSave() {
 
 .btn {
   /* accent variables consumed above */
+}
+
+.modal__dialog--fullscreen {
+  position: fixed;
+  inset: 0;
+  width: 100vw;
+  height: 100vh;
+  max-height: none;
+  border-radius: 0;
+  padding: 16px;
+}
+.modal__dialog--fullscreen :deep(.editor-host) {
+  height: calc(100vh - 160px);
 }
 </style>
