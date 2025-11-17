@@ -5,8 +5,14 @@
       <button class="btn" type="button" @click="emit('refresh', currentPath)">刷新</button>
     </header>
     <div class="path-bar">
-      <input v-model="editablePath" @keyup.enter="emitPath" />
-      <button class="btn btn--ghost" type="button" @click="goUp">上一级</button>
+      <FancySearchInput
+        v-model="editablePath"
+        :placeholder="currentPath || '/'"
+        :full="true"
+        @enter="emitPath"
+        @action="goUp"
+        style="flex: 1; min-width: 0"
+      />
     </div>
     <div v-if="loading" class="panel__empty">加载中...</div>
     <div v-else class="explorer scroll-area">
@@ -60,6 +66,7 @@
 
 <script setup>
 import { computed, ref, watch } from 'vue';
+import FancySearchInput from './FancySearchInput.vue';
 
 const props = defineProps({
   entries: {
