@@ -324,4 +324,38 @@ ipcMain.handle('ai:explain-command', async (_event, { command, stdout, stderr, e
   }
 });
 
+// 查找文件位置（支持流式响应）
+ipcMain.handle('ai:find-file', async (_event, { query, execId }) => {
+  try {
+    aiResponseStreams[execId] = {
+      id: execId,
+      createdAt: Date.now(),
+    };
+
+    const fullResponse = await aiService.findFileLocation(query, (chunk) => {
+      if (mainWindow && !mainWindow.isDestroyed()) {
+        mainWindow.webContents.send('ai:stream-data', {
+          execId,
+          type: 'data',
+          chunk,
+        });
+      }
+    });
+
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      mainWindow.webContents.send('ai:stream-data', {
+        execId,
+        type: 'end',
+        fullResponse,
+      });
+    }
+
+    delete aiResponseStreams[execId];
+    return { ok: true, execId };
+  } catch (error) {
+    delete aiResponseStreams[execId];
+    return { ok: false, message: error.message };
+  }
+});
+
 module.exports = { createWindow };

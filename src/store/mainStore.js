@@ -552,5 +552,27 @@ export const useMainStore = defineStore('main', {
         return { ok: false, message: error.message };
       }
     },
+
+    // AI 文件查找方法
+    async aiFindFile(query, execId) {
+      if (!this.deepSeekConfig.apiKey || !this.deepSeekConfig.enabled) {
+        return { ok: false, message: 'DeepSeek 未配置或未启用' };
+      }
+      if (!query || !query.trim()) {
+        return { ok: false, message: '请输入文件查找问题' };
+      }
+      if (!execId) {
+        return { ok: false, message: '缺少执行ID' };
+      }
+      try {
+        const result = await window.api.aiFindFile({
+          query: query.trim(),
+          execId,
+        });
+        return result;
+      } catch (error) {
+        return { ok: false, message: error.message };
+      }
+    },
   },
 });

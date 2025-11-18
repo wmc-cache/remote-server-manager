@@ -208,6 +208,60 @@ class AIService extends EventEmitter {
 
     return await this.streamChat(messages, onData);
   }
+
+  /**
+   * 查找文件位置
+   * @param {string} query - 用户查询，如"nginx的配置文件在哪"
+   * @param {Function} onData - 流式数据回调
+   * @returns {Promise<string>} 完整的响应
+   */
+  async findFileLocation(query, onData = null) {
+    if (!query || !query.trim()) {
+      throw new Error('请输入文件查找问题');
+    }
+
+    const systemPrompt = `你是一个专业的 Linux/Unix 系统管理员和开发者助手。
+你的任务是帮助用户找到他们想要的文件或目录的位置。
+
+规则：
+1. 分析用户的查询意图，理解他们要找什么类型的文件
+2. 提供具体的查找命令，使用常见的 Linux 命令（find、locate、grep 等）
+3. 列出该类型文件的常见标准路径
+4. 如果可能，提供多个查找方法（快速查找和精确查找）
+5. 使用 Markdown 格式，命令用 \`\`\`bash 标记
+6. 对于系统关键目录，给出权限提示
+7. 解释每个命令的作用和参数含义
+8. 保持回答简洁但全面
+
+格式示例：
+**查找命令：**
+\`\`\`bash
+# 使用 find 精确查找
+sudo find / -name "nginx.conf" 2>/dev/null
+
+# 使用 locate 快速查找（需安装 mlocate）
+locate nginx.conf
+\`\`\`
+
+**常见路径：**
+- /etc/nginx/nginx.conf
+- /usr/local/nginx/conf/nginx.conf
+- /opt/homebrew/etc/nginx/nginx.conf (macOS Homebrew)
+
+**说明：**
+- find 命令会实时搜索文件系统，较慢但准确
+- locate 命令基于数据库，需要执行 updatedb 更新
+- 配置文件通常位于 /etc 目录下`;
+
+    const userPrompt = `用户问题：${query}\n\n请提供文件查找命令和可能的文件位置：`;
+
+    const messages = [
+      { role: 'system', content: systemPrompt },
+      { role: 'user', content: userPrompt },
+    ];
+
+    return await this.streamChat(messages, onData);
+  }
 }
 
 // 单例模式

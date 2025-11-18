@@ -33,7 +33,7 @@
     <!-- AI 助手面板 -->
     <div v-if="showAI" class="ai-panel">
       <div class="ai-panel__header">
-        <h3>DeepSeek AI 助手</h3>
+        <h3>AI 助手</h3>
         <small v-if="aiStatus" class="ai-status">{{ aiStatus }}</small>
       </div>
 

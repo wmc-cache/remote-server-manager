@@ -56,49 +56,55 @@
         </div>
       </header>
 
-      <section class="detail__grid detail__grid--columns">
-        <RemoteExplorer
-          :entries="store.remoteEntries"
-          :current-path="store.remotePath"
-          :loading="store.isLoadingRemote"
-          @change-path="store.fetchRemoteDirectory"
-          @refresh="store.fetchRemoteDirectory"
-          @preview="store.previewRemoteFile"
-          @download="store.downloadRemoteFile"
-          @delete="handleDeleteFile"
-        />
-        <article class="panel preview">
-          <header class="preview__header">
-            <h2>文件预览</h2>
-            <div class="header__actions">
-              <button
-                v-if="store.previewFile && store.previewFile.encoding === 'text'"
-                class="btn btn--ghost"
-                type="button"
-                @click="openEditor"
-              >
-                编辑
-              </button>
-            </div>
-          </header>
-          <div v-if="!store.previewFile" class="panel__empty">双击文件或点击“预览”查看内容</div>
-          <FilePreview v-else :file="store.previewFile" />
-        </article>
-      </section>
-
-      <section class="detail__grid">
-        <TerminalPanel :history="store.terminalHistory" @execute="store.executeCommand" />
-        <SyncConfigList
-          :mappings="store.syncMappings"
-          :is-syncing="store.isSyncing"
-          :active-ids="store.activeSyncIds"
-          @save="handleSaveSync"
-          @start="handleStartSync"
-          @stop="store.stopSync"
-          @remove="store.deleteSyncMapping"
-        />
-        <SyncStatusLog :logs="store.syncLogs" />
-      </section>
+      <Tabs v-model="activeDetailTab" :tabs="detailTabs" class="detail__tabs">
+        <template #default="{ activeTab }">
+          <section v-if="activeTab === 0" class="detail__grid detail__grid--columns detail__tab-panel">
+            <RemoteExplorer
+              :entries="store.remoteEntries"
+              :current-path="store.remotePath"
+              :loading="store.isLoadingRemote"
+              @change-path="store.fetchRemoteDirectory"
+              @refresh="store.fetchRemoteDirectory"
+              @preview="store.previewRemoteFile"
+              @download="store.downloadRemoteFile"
+              @delete="handleDeleteFile"
+            />
+            <article class="panel preview">
+              <header class="preview__header">
+                <h2>文件预览</h2>
+                <div class="header__actions">
+                  <button
+                    v-if="store.previewFile && store.previewFile.encoding === 'text'"
+                    class="btn btn--ghost"
+                    type="button"
+                    @click="openEditor"
+                  >
+                    编辑
+                  </button>
+                </div>
+              </header>
+              <div v-if="!store.previewFile" class="panel__empty">双击文件或点击“预览”查看内容</div>
+              <FilePreview v-else :file="store.previewFile" />
+            </article>
+          </section>
+          <section v-else-if="activeTab === 1" class="detail__grid detail__grid--vertical detail__tab-panel">
+            <TerminalPanel :history="store.terminalHistory" @execute="store.executeCommand" />
+            <AIFileFinder v-if="store.deepSeekConfig.enabled" />
+          </section>
+          <section v-else class="detail__grid detail__grid--vertical detail__tab-panel">
+            <SyncConfigList
+              :mappings="store.syncMappings"
+              :is-syncing="store.isSyncing"
+              :active-ids="store.activeSyncIds"
+              @save="handleSaveSync"
+              @start="handleStartSync"
+              @stop="store.stopSync"
+              @remove="store.deleteSyncMapping"
+            />
+            <SyncStatusLog :logs="store.syncLogs" />
+          </section>
+        </template>
+      </Tabs>
     </section>
     <PreviewFullscreen :visible="fullscreenVisible" :file="store.previewFile" @close="closeFullscreen" />
   </div>
@@ -118,6 +124,8 @@ import ThemePicker from './components/ThemePicker.vue';
 import FilePreview from './components/FilePreview.vue';
 import PreviewFullscreen from './components/PreviewFullscreen.vue';
 import AIConfig from './components/AIConfig.vue';
+import AIFileFinder from './components/AIFileFinder.vue';
+import Tabs from './components/Tabs.vue';
 
 const store = useMainStore();
 const showCreateModal = ref(false);
@@ -127,6 +135,12 @@ const editorMessage = ref('');
 const editorMessageType = ref('info');
 const editingConnection = ref(null);
 const fullscreenVisible = ref(false);
+const activeDetailTab = ref(0);
+const detailTabs = [
+  { label: '文件管理' },
+  { label: '终端工具' },
+  { label: '同步与日志' },
+];
 
 onMounted(async () => {
   await Promise.all([store.loadConnections(), store.loadSyncMappings()]);
@@ -140,6 +154,8 @@ watch(
   (value) => {
     if (!value) {
       isDetailView.value = false;
+    } else {
+      activeDetailTab.value = 0;
     }
   },
 );
@@ -226,6 +242,7 @@ async function handleCreateConnection(connection) {
 function handleSelectConnection(id) {
   store.selectedConnectionId = id;
   isDetailView.value = true;
+  activeDetailTab.value = 0;
   store.connect(id);
 }
 
@@ -252,6 +269,7 @@ function handleBackToList() {
   store.previewFile = null;
   store.remotePath = '/';
   store.selectedConnectionId = null;
+  activeDetailTab.value = 0;
   closeEditor();
 }
 
@@ -409,6 +427,27 @@ async function handleDeleteFile(payload) {
   gap: 24px;
 }
 
+.detail__tabs {
+  background: var(--surface-1);
+  border-radius: 16px;
+  border: 1px solid var(--panel-border);
+  box-shadow: 0 10px 30px rgba(0,0,0,0.25);
+  backdrop-filter: var(--panel-blur);
+  height: auto;
+}
+
+.detail__tabs :deep(.tabs__header) {
+  padding: 20px 20px 0;
+}
+
+.detail__tabs :deep(.tabs__content) {
+  padding: 20px;
+}
+
+.detail__tab-panel {
+  min-height: 0;
+}
+
 .detail__topbar {
   display: flex;
   align-items: center;
@@ -439,6 +478,31 @@ async function handleDeleteFile(payload) {
 
 .detail__grid--columns {
   grid-template-columns: minmax(0, 2fr) minmax(0, 1fr);
+}
+
+.detail__grid--vertical {
+  grid-template-columns: 1fr;
+}
+
+/* 保留之前的旧样式，以防需要恢复 */
+.detail__grid--four {
+  grid-template-columns: repeat(4, 1fr);
+}
+
+.detail__grid--four > :nth-child(1) {
+  grid-column: 1 / span 2;
+}
+
+.detail__grid--four > :nth-child(2) {
+  grid-column: 3 / span 1;
+}
+
+.detail__grid--four > :nth-child(3) {
+  grid-column: 4 / span 1;
+}
+
+.detail__grid--four > :nth-child(4) {
+  grid-column: 1 / span 4;
 }
 
 .panel {

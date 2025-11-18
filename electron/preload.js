@@ -48,6 +48,7 @@ contextBridge.exposeInMainWorld('api', {
   aiGenerateCommand: ({ prompt, execId }) => invoke('ai:generate-command', { prompt, execId }),
   aiExplainCommand: ({ command, stdout, stderr, execId }) =>
     invoke('ai:explain-command', { command, stdout, stderr, execId }),
+  aiFindFile: ({ query, execId }) => invoke('ai:find-file', { query, execId }),
 
   onAIStreamData: (callback) => {
     ipcRenderer.on('ai:stream-data', (_event, data) => callback(data));
