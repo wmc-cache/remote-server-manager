@@ -4,11 +4,13 @@ const { app, BrowserWindow, ipcMain, dialog } = require('electron');
 const ConnectionStore = require('./services/connectionStore');
 const SSHClientService = require('./services/sshClient');
 const createSyncService = require('./services/fileSync');
+const { getAIService } = require('./services/aiService');
 
 const isDev = !app.isPackaged;
 const connectionStore = new ConnectionStore();
 const sshClientService = new SSHClientService();
 const syncService = createSyncService(sshClientService);
+const aiService = getAIService();
 
 let mainWindow;
 
@@ -237,6 +239,89 @@ ipcMain.handle('sync:delete', async (_event, syncId) => {
   await connectionStore.deleteSyncMapping(syncId);
   await syncService.stopSync(syncId);
   return true;
+});
+
+// DeepSeek AI IPC handlers
+const aiResponseStreams = {}; // execId -> { onData: Function }
+
+// 加载 DeepSeek 配置
+ipcMain.handle('ai:load-config', () => {
+  return connectionStore.getDeepSeekConfig();
+});
+
+// 保存 DeepSeek 配置
+ipcMain.handle('ai:save-config', (_event, config) => {
+  aiService.updateConfig(config);
+  connectionStore.setDeepSeekConfig(config);
+  return { ok: true };
+});
+
+// 生成命令（支持流式响应）
+ipcMain.handle('ai:generate-command', async (_event, { prompt, execId }) => {
+  try {
+    aiResponseStreams[execId] = {
+      id: execId,
+      createdAt: Date.now(),
+    };
+
+    const fullResponse = await aiService.generateCommand(prompt, (chunk) => {
+      if (mainWindow && !mainWindow.isDestroyed()) {
+        mainWindow.webContents.send('ai:stream-data', {
+          execId,
+          type: 'data',
+          chunk,
+        });
+      }
+    });
+
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      mainWindow.webContents.send('ai:stream-data', {
+        execId,
+        type: 'end',
+        fullResponse,
+      });
+    }
+
+    delete aiResponseStreams[execId];
+    return { ok: true, execId };
+  } catch (error) {
+    delete aiResponseStreams[execId];
+    return { ok: false, message: error.message };
+  }
+});
+
+// 解释命令（支持流式响应）
+ipcMain.handle('ai:explain-command', async (_event, { command, stdout, stderr, execId }) => {
+  try {
+    aiResponseStreams[execId] = {
+      id: execId,
+      createdAt: Date.now(),
+    };
+
+    const fullResponse = await aiService.explainCommand(command, stdout, stderr, (chunk) => {
+      if (mainWindow && !mainWindow.isDestroyed()) {
+        mainWindow.webContents.send('ai:stream-data', {
+          execId,
+          type: 'data',
+          chunk,
+        });
+      }
+    });
+
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      mainWindow.webContents.send('ai:stream-data', {
+        execId,
+        type: 'end',
+        fullResponse,
+      });
+    }
+
+    delete aiResponseStreams[execId];
+    return { ok: true, execId };
+  } catch (error) {
+    delete aiResponseStreams[execId];
+    return { ok: false, message: error.message };
+  }
 });
 
 module.exports = { createWindow };

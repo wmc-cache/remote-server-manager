@@ -24,6 +24,13 @@ export const useMainStore = defineStore('main', {
     previewWatchStat: null,
     // execId -> { stdoutBuf: string, stderrBuf: string, timer: any, ended: boolean, pendingCode: number|null }
     terminalStreams: {},
+    // DeepSeek AI 配置
+    deepSeekConfig: {
+      apiKey: '',
+      apiBaseUrl: 'https://api.deepseek.com',
+      model: 'deepseek-chat',
+      enabled: false,
+    },
   }),
   actions: {
     escapeShellArg(value) {
@@ -473,6 +480,77 @@ export const useMainStore = defineStore('main', {
           stream.timer = setInterval(() => tick(execId), 33);
         }
       });
+    },
+
+    // DeepSeek AI 配置管理
+    async loadDeepSeekConfig() {
+      try {
+        const config = await window.api.loadDeepSeekConfig();
+        if (config) {
+          this.deepSeekConfig = {
+            apiKey: config.apiKey || '',
+            apiBaseUrl: config.apiBaseUrl || 'https://api.deepseek.com',
+            model: config.model || 'deepseek-chat',
+            enabled: config.enabled || false,
+          };
+        }
+      } catch (error) {
+        console.error('加载 DeepSeek 配置失败:', error);
+      }
+    },
+
+    async saveDeepSeekConfig(config) {
+      try {
+        const result = await window.api.saveDeepSeekConfig({
+          ...this.deepSeekConfig,
+          ...config,
+        });
+        if (result?.ok) {
+          this.deepSeekConfig = {
+            apiKey: config.apiKey || '',
+            apiBaseUrl: config.apiBaseUrl || 'https://api.deepseek.com',
+            model: config.model || 'deepseek-chat',
+            enabled: config.enabled || false,
+          };
+        }
+        return result;
+      } catch (error) {
+        console.error('保存 DeepSeek 配置失败:', error);
+        return { ok: false, message: error.message };
+      }
+    },
+
+    // AI 助手相关方法
+    async aiGenerateCommand(prompt) {
+      if (!this.deepSeekConfig.apiKey || !this.deepSeekConfig.enabled) {
+        return { ok: false, message: 'DeepSeek 未配置或未启用' };
+      }
+      try {
+        const result = await window.api.aiGenerateCommand({
+          prompt,
+          config: this.deepSeekConfig,
+        });
+        return result;
+      } catch (error) {
+        return { ok: false, message: error.message };
+      }
+    },
+
+    async aiExplainCommand(command, stdout, stderr) {
+      if (!this.deepSeekConfig.apiKey || !this.deepSeekConfig.enabled) {
+        return { ok: false, message: 'DeepSeek 未配置或未启用' };
+      }
+      try {
+        const result = await window.api.aiExplainCommand({
+          command,
+          stdout,
+          stderr,
+          config: this.deepSeekConfig,
+        });
+        return result;
+      } catch (error) {
+        return { ok: false, message: error.message };
+      }
     },
   },
 });

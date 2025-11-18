@@ -24,6 +24,7 @@
         </div>
         <div class="header__actions">
           <ThemePicker @change="store.setTheme" />
+          <AIConfig @saved="loadAIConfig" />
           <button class="btn btn--primary" type="button" @click="openCreateModal">新增连接</button>
         </div>
       </header>
@@ -50,6 +51,7 @@
         </div>
         <div class="header__actions">
           <ThemePicker @change="store.setTheme" />
+          <AIConfig @saved="loadAIConfig" />
           <div v-if="currentHostLabel" class="host-chip" :title="currentHostLabel">{{ currentHostLabel }}</div>
         </div>
       </header>
@@ -115,6 +117,7 @@ import { useMainStore } from './store/mainStore';
 import ThemePicker from './components/ThemePicker.vue';
 import FilePreview from './components/FilePreview.vue';
 import PreviewFullscreen from './components/PreviewFullscreen.vue';
+import AIConfig from './components/AIConfig.vue';
 
 const store = useMainStore();
 const showCreateModal = ref(false);

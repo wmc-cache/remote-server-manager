@@ -92,6 +92,25 @@ class ConnectionStore {
     const updated = this.getSyncMappings().filter((item) => item.id !== id);
     this.store.set('syncMappings', updated);
   }
+
+  // DeepSeek 配置管理
+  getDeepSeekConfig() {
+    return this.store.get('deepSeekConfig') || {
+      apiKey: '',
+      apiBaseUrl: 'https://api.deepseek.com',
+      model: 'deepseek-chat',
+      enabled: false,
+    };
+  }
+
+  setDeepSeekConfig(config) {
+    this.store.set('deepSeekConfig', {
+      apiKey: config.apiKey || '',
+      apiBaseUrl: config.apiBaseUrl || 'https://api.deepseek.com',
+      model: config.model || 'deepseek-chat',
+      enabled: config.enabled || false,
+    });
+  }
 }
 
 module.exports = ConnectionStore;

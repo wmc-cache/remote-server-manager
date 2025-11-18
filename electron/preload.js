@@ -41,4 +41,16 @@ contextBridge.exposeInMainWorld('api', {
     ipcRenderer.on('terminal:data', (_event, data) => callback(data));
     return () => ipcRenderer.removeAllListeners('terminal:data');
   },
+
+  // DeepSeek AI API
+  loadDeepSeekConfig: () => invoke('ai:load-config'),
+  saveDeepSeekConfig: (config) => invoke('ai:save-config', config),
+  aiGenerateCommand: ({ prompt, execId }) => invoke('ai:generate-command', { prompt, execId }),
+  aiExplainCommand: ({ command, stdout, stderr, execId }) =>
+    invoke('ai:explain-command', { command, stdout, stderr, execId }),
+
+  onAIStreamData: (callback) => {
+    ipcRenderer.on('ai:stream-data', (_event, data) => callback(data));
+    return () => ipcRenderer.removeAllListeners('ai:stream-data');
+  },
 });
