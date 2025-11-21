@@ -143,7 +143,7 @@ const detailTabs = [
 ];
 
 onMounted(async () => {
-  await Promise.all([store.loadConnections(), store.loadSyncMappings()]);
+  await Promise.all([store.loadConnections(), store.loadSyncMappings(), store.loadDeepSeekConfig()]);
   store.listenSyncLog();
   store.listenTerminalData?.();
   store.initTheme?.();

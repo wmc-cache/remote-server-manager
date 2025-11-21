@@ -67,7 +67,7 @@
 </template>
 
 <script setup>
-import { onMounted, ref } from 'vue';
+import { onMounted, ref, watch } from 'vue';
 import { useMainStore } from '../store/mainStore';
 
 const store = useMainStore();
@@ -85,10 +85,17 @@ const config = ref({
   enabled: false,
 });
 
-onMounted(() => {
-  store.loadDeepSeekConfig();
-  config.value = { ...store.deepSeekConfig };
+onMounted(async () => {
+  await store.loadDeepSeekConfig();
 });
+
+watch(
+  () => store.deepSeekConfig,
+  (value) => {
+    config.value = { ...value };
+  },
+  { deep: true, immediate: true },
+);
 
 function openConfig() {
   showConfig.value = true;

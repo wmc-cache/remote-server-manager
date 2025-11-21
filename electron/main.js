@@ -11,6 +11,8 @@ const connectionStore = new ConnectionStore();
 const sshClientService = new SSHClientService();
 const syncService = createSyncService(sshClientService);
 const aiService = getAIService();
+// 启动时加载已保存的 AI 配置，避免重启后需要重新保存
+aiService.updateConfig(connectionStore.getDeepSeekConfig());
 
 let mainWindow;
 
@@ -246,7 +248,9 @@ const aiResponseStreams = {}; // execId -> { onData: Function }
 
 // 加载 DeepSeek 配置
 ipcMain.handle('ai:load-config', () => {
-  return connectionStore.getDeepSeekConfig();
+  const config = connectionStore.getDeepSeekConfig();
+  aiService.updateConfig(config);
+  return config;
 });
 
 // 保存 DeepSeek 配置
