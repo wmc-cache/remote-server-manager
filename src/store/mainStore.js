@@ -1,6 +1,7 @@
 import { defineStore } from 'pinia';
 
 const initialRemotePath = '/';
+const defaultTerminalKey = '__default__';
 
 export const useMainStore = defineStore('main', {
   state: () => ({
@@ -24,6 +25,7 @@ export const useMainStore = defineStore('main', {
     previewWatchStat: null,
     // execId -> { stdoutBuf: string, stderrBuf: string, timer: any, ended: boolean, pendingCode: number|null }
     terminalStreams: {},
+    terminalHistoryMap: { [defaultTerminalKey]: [] },
     // DeepSeek AI 配置
     deepSeekConfig: {
       apiKey: '',
@@ -38,6 +40,47 @@ export const useMainStore = defineStore('main', {
         return "''";
       }
       return `'${value.replace(/'/g, `'\\''`)}'`;
+    },
+
+    getTerminalKey(connectionId) {
+      return connectionId || defaultTerminalKey;
+    },
+
+    ensureTerminalHistory(connectionId = this.selectedConnectionId) {
+      const key = this.getTerminalKey(connectionId);
+      if (!this.terminalHistoryMap[key]) {
+        this.terminalHistoryMap[key] = [];
+      }
+      return this.terminalHistoryMap[key];
+    },
+
+    syncTerminalHistory(connectionId = this.selectedConnectionId) {
+      this.terminalHistory = this.ensureTerminalHistory(connectionId);
+    },
+
+    updateTerminalHistory(connectionId, history) {
+      const key = this.getTerminalKey(connectionId);
+      this.terminalHistoryMap[key] = history;
+      if (this.getTerminalKey(this.selectedConnectionId) === key) {
+        this.terminalHistory = history;
+      }
+    },
+
+    findHistoryByExecId(execId) {
+      const keys = Object.keys(this.terminalHistoryMap || {});
+      for (const key of keys) {
+        const list = this.terminalHistoryMap[key] || [];
+        const idx = list.findIndex((item) => item.id === execId);
+        if (idx !== -1) {
+          return { key, list, idx };
+        }
+      }
+      return null;
+    },
+
+    setActiveConnection(connectionId) {
+      this.selectedConnectionId = connectionId || null;
+      this.syncTerminalHistory(connectionId);
     },
 
     normalizeError(error) {
@@ -69,20 +112,21 @@ export const useMainStore = defineStore('main', {
       const saved = await window.api.saveConnection(connection);
       await this.loadConnections();
       if (saved?.id) {
-        this.selectedConnectionId = saved.id;
+        this.setActiveConnection(saved.id);
       }
     },
 
     async deleteConnection(id) {
       await window.api.deleteConnection(id);
       if (this.selectedConnectionId === id) {
-        this.selectedConnectionId = null;
+        this.setActiveConnection(null);
         this.remoteEntries = [];
         this.connectionStatus = 'idle';
         this.connectionMessage = '';
         this.remotePath = initialRemotePath;
         this.activeSyncIds = [];
       }
+      delete this.terminalHistoryMap[this.getTerminalKey(id)];
       await this.loadConnections();
     },
 
@@ -101,7 +145,7 @@ export const useMainStore = defineStore('main', {
         if (!result.ok) {
           throw new Error(result.message);
         }
-        this.selectedConnectionId = result.connectionId;
+        this.setActiveConnection(result.connectionId);
         const success = await this.fetchRemoteDirectory(this.remotePath);
         if (success) {
           this.connectionStatus = 'connected';
@@ -289,6 +333,8 @@ export const useMainStore = defineStore('main', {
 
     async executeCommand(command) {
       if (!this.selectedConnectionId || !command) return;
+      const key = this.getTerminalKey(this.selectedConnectionId);
+      const history = this.ensureTerminalHistory(key);
       const cwd = this.remotePath || initialRemotePath;
       const prepared = `cd ${this.escapeShellArg(cwd)} && ${command}`;
       if (window.api.execStream && window.api.onTerminalData) {
@@ -302,9 +348,18 @@ export const useMainStore = defineStore('main', {
               stderr: '',
               code: null,
               timestamp: new Date().toISOString(),
+              connectionId: this.selectedConnectionId,
             };
-            this.terminalHistory.unshift(entry);
-            this.terminalHistory = this.terminalHistory.slice(0, 100);
+            const nextHistory = [entry, ...history].slice(0, 100);
+            this.updateTerminalHistory(key, nextHistory);
+            this.terminalStreams[result.execId] = {
+              stdoutBuf: '',
+              stderrBuf: '',
+              timer: null,
+              ended: false,
+              pendingCode: null,
+              connectionKey: key,
+            };
             return;
           }
         } catch (e) {
@@ -312,14 +367,16 @@ export const useMainStore = defineStore('main', {
         }
       }
       const result = await window.api.executeCommand(this.selectedConnectionId, prepared);
-      this.terminalHistory.unshift({
+      const entry = {
         command,
         stdout: result.stdout,
         stderr: result.stderr,
         code: result.code,
         timestamp: new Date().toISOString(),
-      });
-      this.terminalHistory = this.terminalHistory.slice(0, 100);
+        connectionId: this.selectedConnectionId,
+      };
+      const nextHistory = [entry, ...history].slice(0, 100);
+      this.updateTerminalHistory(key, nextHistory);
     },
 
     async downloadRemoteFile(remotePath) {
@@ -424,9 +481,10 @@ export const useMainStore = defineStore('main', {
       const tick = (id) => {
         const stream = this.terminalStreams[id];
         if (!stream) return;
-        const idx = this.terminalHistory.findIndex((i) => i.id === id);
+        const history = this.ensureTerminalHistory(stream.connectionKey);
+        const idx = history.findIndex((i) => i.id === id);
         if (idx === -1) { clearInterval(stream.timer); delete this.terminalStreams[id]; return; }
-        const entry = this.terminalHistory[idx];
+        const entry = history[idx];
         let changed = false;
         for (let n = 0; n < perTick; n += 1) {
           let ch = '';
@@ -446,13 +504,17 @@ export const useMainStore = defineStore('main', {
         }
         if (changed) {
           // force reactivity
-          this.terminalHistory.splice(idx, 1, { ...entry });
+          const next = [...history];
+          next.splice(idx, 1, { ...entry });
+          this.updateTerminalHistory(stream.connectionKey, next);
         }
         if (!stream.stdoutBuf && !stream.stderrBuf && stream.ended) {
           clearInterval(stream.timer);
           stream.timer = null;
           if (typeof stream.pendingCode === 'number') {
-            this.terminalHistory.splice(idx, 1, { ...entry, code: stream.pendingCode, timestamp: new Date().toISOString() });
+            const next = [...history];
+            next.splice(idx, 1, { ...entry, code: stream.pendingCode, timestamp: new Date().toISOString() });
+            this.updateTerminalHistory(stream.connectionKey, next);
           }
           delete this.terminalStreams[id];
         }
@@ -461,13 +523,18 @@ export const useMainStore = defineStore('main', {
       window.api.onTerminalData((payload) => {
         const { execId, type, data, code } = payload || {};
         if (!execId) return;
-        // Ensure entry exists
-        const idx = this.terminalHistory.findIndex((i) => i.id === execId);
-        if (idx === -1) return;
         if (!this.terminalStreams[execId]) {
-          this.terminalStreams[execId] = { stdoutBuf: '', stderrBuf: '', timer: null, ended: false, pendingCode: null };
+          this.terminalStreams[execId] = { stdoutBuf: '', stderrBuf: '', timer: null, ended: false, pendingCode: null, connectionKey: null };
         }
         const stream = this.terminalStreams[execId];
+        if (!stream.connectionKey) {
+          const found = this.findHistoryByExecId(execId);
+          if (!found) return;
+          stream.connectionKey = found.key;
+        }
+        const history = this.ensureTerminalHistory(stream.connectionKey);
+        const idx = history.findIndex((i) => i.id === execId);
+        if (idx === -1) return;
         if (type === 'stdout') {
           stream.stdoutBuf += (data || '');
         } else if (type === 'stderr') {

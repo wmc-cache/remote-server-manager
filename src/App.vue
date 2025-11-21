@@ -240,7 +240,7 @@ async function handleCreateConnection(connection) {
 }
 
 function handleSelectConnection(id) {
-  store.selectedConnectionId = id;
+  store.setActiveConnection(id);
   isDetailView.value = true;
   activeDetailTab.value = 0;
   store.connect(id);
@@ -268,7 +268,7 @@ function handleBackToList() {
   store.remoteEntries = [];
   store.previewFile = null;
   store.remotePath = '/';
-  store.selectedConnectionId = null;
+  store.setActiveConnection(null);
   activeDetailTab.value = 0;
   closeEditor();
 }

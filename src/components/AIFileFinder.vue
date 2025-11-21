@@ -72,8 +72,8 @@
 
         <!-- 执行命令按钮 -->
         <div v-if="response && !loading" class="response__execute">
-          <button class="btn btn--success" @click="executeInTerminal">
-            在终端执行查找命令
+          <button class="btn btn--success" :disabled="executing" @click="executeInTerminal">
+            {{ executing ? '执行中...' : '在终端执行查找命令' }}
           </button>
           <small class="execute-tip">点击后将在终端面板中执行推荐的查找命令</small>
         </div>
@@ -88,7 +88,7 @@
 </template>
 
 <script setup>
-import { ref } from 'vue';
+import { ref, watch } from 'vue';
 import { useMainStore } from '../store/mainStore';
 
 const store = useMainStore();
@@ -99,6 +99,7 @@ const streaming = ref('');
 const loading = ref(false);
 const status = ref('');
 const statusType = ref('info');
+const executing = ref(false);
 
 let currentExecId = null;
 let aiStreamUnsubscribe = null;
@@ -108,6 +109,20 @@ let timeoutTimer = null;
 if (window.api?.onAIStreamData) {
   aiStreamUnsubscribe = window.api.onAIStreamData(handleAIStream);
 }
+
+watch(
+  () => store.selectedConnectionId,
+  () => {
+    query.value = '';
+    response.value = '';
+    streaming.value = '';
+    status.value = '';
+    statusType.value = 'info';
+    executing.value = false;
+    loading.value = false;
+    currentExecId = null;
+  },
+);
 
 function setQuery(text) {
   query.value = text;
@@ -207,10 +222,54 @@ function clearResponse() {
   status.value = '';
 }
 
-function executeInTerminal() {
-  // TODO: 集成到终端面板执行
-  status.value = '即将在终端执行...（功能待与终端面板集成）';
+function extractCommand(text) {
+  if (!text) return '';
+  // 优先取代码块中的第一条命令
+  const codeBlock = text.match(/```(?:bash|shell)?\s*([\s\S]*?)```/i);
+  const blockContent = codeBlock ? codeBlock[1] : text;
+  const lines = blockContent
+    .split('\n')
+    .map((line) => line.trim())
+    .map((line) => line.replace(/^\$\s*/, '')) // 去掉可能的 shell 提示符
+    .filter(Boolean);
+
+  for (const line of lines) {
+    if (/^(#|[-*])/.test(line)) continue; // 跳过注释或列表行
+    if (/^```/.test(line)) continue;
+    return line;
+  }
+  return '';
+}
+
+async function executeInTerminal() {
+  if (loading.value || executing.value) return;
+  if (!store.selectedConnectionId) {
+    status.value = '请先连接服务器后再执行';
+    statusType.value = 'error';
+    return;
+  }
+
+  const cmd = extractCommand(response.value || streaming.value);
+  if (!cmd) {
+    status.value = '未找到可执行的命令，请复制后手动调整';
+    statusType.value = 'error';
+    return;
+  }
+
+  executing.value = true;
+  status.value = '正在发送到终端执行...';
   statusType.value = 'info';
+
+  try {
+    await store.executeCommand(cmd);
+    status.value = '命令已发送到终端面板，请在终端工具中查看执行结果';
+    statusType.value = 'success';
+  } catch (error) {
+    status.value = `执行失败：${error.message}`;
+    statusType.value = 'error';
+  } finally {
+    executing.value = false;
+  }
 }
 
 // 清理
