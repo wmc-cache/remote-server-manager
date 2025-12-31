@@ -260,6 +260,11 @@ ipcMain.handle('ai:save-config', (_event, config) => {
   return { ok: true };
 });
 
+// 获取 AI 助手系统提示词（用于 UI 展示提示语详情）
+ipcMain.handle('ai:get-system-prompt', () => {
+  return aiService.getAssistantSystemPrompt?.() || '';
+});
+
 // 生成命令（支持流式响应）
 ipcMain.handle('ai:generate-command', async (_event, { prompt, execId }) => {
   try {

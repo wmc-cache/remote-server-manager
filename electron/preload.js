@@ -50,6 +50,7 @@ contextBridge.exposeInMainWorld('api', {
     invoke('ai:explain-command', { command, stdout, stderr, execId }),
   aiFindFile: ({ query, execId }) => invoke('ai:find-file', { query, execId }),
   aiChat: ({ messages, context, execId }) => invoke('ai:chat', { messages, context, execId }),
+  getAISystemPrompt: () => invoke('ai:get-system-prompt'),
 
   onAIStreamData: (callback) => {
     ipcRenderer.on('ai:stream-data', (_event, data) => callback(data));

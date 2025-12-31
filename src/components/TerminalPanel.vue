@@ -36,6 +36,9 @@
         <h3>AI 工具</h3>
         <div class="ai-panel__header-actions">
           <small v-if="aiStatus" class="ai-status">{{ aiStatus }}</small>
+          <button class="btn btn--ghost btn--xs" type="button" @click="openPromptPreview">
+            提示语详情
+          </button>
           <button class="btn btn--ghost btn--xs" type="button" :disabled="aiLoading" @click="clearChat">
             清空对话
           </button>
@@ -51,7 +54,11 @@
           <input type="checkbox" v-model="store.aiAssistantOptions.includeFileContext" />
           包含文件管理信息
         </label>
-        <small class="ai-option__tip">启用后会把相关内容发送给 DeepSeek，请勿包含敏感信息</small>
+        <label class="ai-option">
+          <input type="checkbox" v-model="store.aiAssistantOptions.detailedExplain" />
+          详细解释
+        </label>
+        <small class="ai-option__tip">勾选“包含...”会把相关内容发送给 DeepSeek，请勿包含敏感信息；“详细解释”仅影响回答风格</small>
       </div>
 
       <div ref="aiHistoryEl" class="ai-chat scroll-area" @scroll="handleAIScroll">
@@ -131,6 +138,30 @@
         </div>
       </div>
     </div>
+
+    <Teleport to="body">
+      <div v-if="promptPreviewVisible" class="modal">
+        <div class="modal__backdrop" @click="closePromptPreview"></div>
+        <section class="modal__dialog modal__dialog--wide">
+          <header class="modal__header">
+            <h2>提示语详情</h2>
+            <button type="button" class="modal__close" @click="closePromptPreview">×</button>
+          </header>
+          <div class="prompt-preview">
+            <small class="prompt-preview__tip">
+              以下内容将发送给 DeepSeek（包含你勾选的上下文），请确认不包含敏感信息。
+            </small>
+            <textarea class="prompt-preview__textarea" readonly :value="promptPreviewText"></textarea>
+            <footer class="modal__actions">
+              <button class="btn btn--ghost" type="button" @click="closePromptPreview">关闭</button>
+              <button class="btn btn--primary" type="button" @click="copyToClipboard(promptPreviewText)">
+                复制
+              </button>
+            </footer>
+          </div>
+        </section>
+      </div>
+    </Teleport>
   </section>
 </template>
 
@@ -161,6 +192,9 @@ const terminalFollowOutput = ref(true);
 const aiFollowOutput = ref(true);
 const lastTerminalScrollTop = ref(0);
 const lastAIScrollTop = ref(0);
+const promptPreviewVisible = ref(false);
+const promptPreviewText = ref('');
+const assistantSystemPrompt = ref('');
 
 let aiStreamUnsubscribe = null;
 let currentAIExecId = null;
@@ -277,8 +311,12 @@ async function explainCommand(item) {
   showAI.value = true;
   const stdout = truncateText(item.stdout || '', 4000);
   const stderr = truncateText(item.stderr || '', 4000);
+  const wantDetailed = store.aiAssistantOptions.detailedExplain !== false;
+  const headerText = wantDetailed
+    ? '请解释下面这条命令的作用、关键参数，并结合输出分析问题（如果有）：'
+    : '请用尽量简洁的方式（少量要点）解释下面命令，并结合输出给出最可能原因与下一步排查命令：';
   const content = [
-    '请解释下面这条命令的作用、关键参数，并结合输出分析问题（如果有）：',
+    headerText,
     '',
     `命令：\n\`\`\`bash\n${item.command}\n\`\`\``,
     stdout ? `标准输出：\n\`\`\`\n${stdout}\n\`\`\`` : '',
@@ -322,6 +360,13 @@ function truncateText(text, maxLen) {
 
 function buildAIContext() {
   const parts = [];
+  const wantDetailed = store.aiAssistantOptions.detailedExplain !== false;
+  parts.push([
+    '【偏好】',
+    wantDetailed
+      ? '命令解释：详细（给出必要说明与风险提示）'
+      : '命令解释：简洁（除非我明确要求，否则命令相关尽量只给命令或少量要点）',
+  ].join('\n'));
 
   if (store.aiAssistantOptions.includeFileContext) {
     const list = (store.remoteEntries || []).slice(0, 60).map((e) => ({
@@ -440,6 +485,45 @@ function clearChat() {
   setTimeout(() => {
     aiStatus.value = '';
   }, 1200);
+}
+
+function buildPromptPreviewPayload() {
+  const connectionId = store.selectedConnectionId;
+  const key = store.getTerminalKey(connectionId);
+  const history = store.aiChatHistoryMap[key] || [];
+  const draft = String(aiInput.value || '').trim();
+  const list = draft ? [...history, { role: 'user', content: draft }] : history;
+  const messages = normalizeChatMessages(list);
+  const context = buildAIContext();
+
+  return {
+    meta: {
+      apiBaseUrl: store.deepSeekConfig?.apiBaseUrl || '',
+      model: store.deepSeekConfig?.model || '',
+    },
+    preferences: { ...store.aiAssistantOptions },
+    systemPrompt: assistantSystemPrompt.value || '(未获取到系统提示词)',
+    context,
+    messages,
+  };
+}
+
+async function openPromptPreview() {
+  try {
+    if (!assistantSystemPrompt.value && window.api?.getAISystemPrompt) {
+      assistantSystemPrompt.value = await window.api.getAISystemPrompt();
+    }
+  } catch (_) {
+    assistantSystemPrompt.value = '';
+  }
+
+  const payload = buildPromptPreviewPayload();
+  promptPreviewText.value = JSON.stringify(payload, null, 2);
+  promptPreviewVisible.value = true;
+}
+
+function closePromptPreview() {
+  promptPreviewVisible.value = false;
 }
 
 function extractFirstCommand(text) {
@@ -645,4 +729,102 @@ function formatTime(timestamp) {
 .scroll-area::-webkit-scrollbar { width: 6px; height: 6px; }
 .scroll-area::-webkit-scrollbar-track { background: transparent; }
 .scroll-area::-webkit-scrollbar-thumb { background: var(--panel-border); border-radius: 3px; }
+
+/* 提示语详情弹框 */
+.modal {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+}
+
+.modal__backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.7);
+  backdrop-filter: blur(4px);
+}
+
+.modal__dialog {
+  position: relative;
+  background: var(--surface-1);
+  border-radius: 12px;
+  padding: 16px;
+  width: min(560px, 92vw);
+  box-shadow: 0 20px 50px rgba(15, 23, 42, 0.45);
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  border: 1px solid var(--panel-border);
+  backdrop-filter: var(--panel-blur);
+  max-height: 82vh;
+}
+
+.modal__dialog--wide {
+  width: min(920px, 94vw);
+}
+
+.modal__header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+}
+
+.modal__header h2 {
+  margin: 0;
+  font-size: 14px;
+  color: #fbbf24;
+}
+
+.modal__close {
+  background: none;
+  border: none;
+  color: #94a3b8;
+  font-size: 22px;
+  cursor: pointer;
+  padding: 0;
+  width: 28px;
+  height: 28px;
+}
+
+.modal__close:hover {
+  color: #e2e8f0;
+}
+
+.modal__actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+}
+
+.prompt-preview {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-height: 0;
+}
+
+.prompt-preview__tip {
+  color: #94a3b8;
+  font-size: 12px;
+}
+
+.prompt-preview__textarea {
+  width: 100%;
+  min-height: 320px;
+  max-height: 62vh;
+  resize: vertical;
+  border-radius: 10px;
+  border: 1px solid var(--panel-border);
+  background: var(--surface-2);
+  color: #e2e8f0;
+  padding: 12px;
+  font-size: 12px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace;
+  line-height: 1.5;
+  outline: none;
+}
 </style>

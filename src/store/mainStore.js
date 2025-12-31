@@ -33,6 +33,7 @@ export const useMainStore = defineStore('main', {
     aiAssistantOptions: {
       includeFileContext: false,
       includeTerminalContext: false,
+      detailedExplain: true,
     },
     // DeepSeek AI 配置
     deepSeekConfig: {
