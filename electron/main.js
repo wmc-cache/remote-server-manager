@@ -362,4 +362,41 @@ ipcMain.handle('ai:find-file', async (_event, { query, execId }) => {
   }
 });
 
+// 通用多轮对话（支持流式响应）
+ipcMain.handle('ai:chat', async (_event, { messages, context, execId }) => {
+  try {
+    if (!execId) {
+      throw new Error('缺少执行ID');
+    }
+    aiResponseStreams[execId] = {
+      id: execId,
+      createdAt: Date.now(),
+    };
+
+    const fullResponse = await aiService.assistantChat(messages, context, (chunk) => {
+      if (mainWindow && !mainWindow.isDestroyed()) {
+        mainWindow.webContents.send('ai:stream-data', {
+          execId,
+          type: 'data',
+          chunk,
+        });
+      }
+    });
+
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      mainWindow.webContents.send('ai:stream-data', {
+        execId,
+        type: 'end',
+        fullResponse,
+      });
+    }
+
+    delete aiResponseStreams[execId];
+    return { ok: true, execId };
+  } catch (error) {
+    delete aiResponseStreams[execId];
+    return { ok: false, message: error.message };
+  }
+});
+
 module.exports = { createWindow };

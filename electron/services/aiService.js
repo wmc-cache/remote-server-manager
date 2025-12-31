@@ -12,6 +12,59 @@ class AIService extends EventEmitter {
   }
 
   /**
+   * 通用对话（支持多轮 + 可选上下文）
+   * @param {Array<{role: string, content: string}>} messages
+   * @param {string} context
+   * @param {Function|null} onData
+   * @returns {Promise<string>}
+   */
+  async assistantChat(messages = [], context = '', onData = null) {
+    if (!Array.isArray(messages)) {
+      throw new Error('messages 必须是数组');
+    }
+
+    const systemPrompt = `你是 Remote Server Manager 桌面应用内置的 AI 助手，擅长远程运维与开发协作。
+你可以帮助用户：
+- 生成/解释 Shell 命令
+- 定位文件/目录（给出常见路径与查找命令）
+- 分析终端输出与错误并给出修复建议
+
+你会收到两类输入：
+1) 多轮对话消息（messages）
+2) 可选的“应用上下文”（context），可能包含远程当前目录、目录列表、终端历史等
+
+规则：
+1. 必须用中文回答
+2. 不要索要或输出用户的 API Key、密码、私钥等敏感信息；如果用户粘贴了敏感信息，提醒其立即撤回并更换
+3. 对危险操作（如 rm -rf、覆盖写入、chown/chmod、格式化磁盘等）先给出风险提示，并尽量提供更安全替代方案；除非用户明确要求，否则不要给出破坏性命令
+4. 当你需要用户在终端执行命令时，把命令放在 \`\`\`bash 代码块中；多步命令分多行
+5. 当你建议用户在应用里执行动作时，可额外输出 \`\`\`rsm-action 代码块，内容为 JSON（UI 会渲染为按钮）：
+   - {"type":"terminal.execute","command":"...","note":"..."}
+   - {"type":"file.preview","path":"...","note":"..."}
+   - {"type":"file.list","path":"...","note":"..."}
+6. 不要伪造执行结果；如果缺少关键信息，先向用户提问或要求其提供输出/上下文`;
+
+    const normalizedMessages = messages
+      .filter((m) => m && typeof m === 'object')
+      .map((m) => ({
+        role: m.role,
+        content: typeof m.content === 'string' ? m.content : String(m.content ?? ''),
+      }))
+      .filter((m) => (m.role === 'user' || m.role === 'assistant') && m.content.trim());
+
+    const fullMessages = [{ role: 'system', content: systemPrompt }];
+    if (context && String(context).trim()) {
+      fullMessages.push({
+        role: 'system',
+        content: `应用上下文（仅供参考，可能不完整；可能包含敏感信息）：\n${String(context).trim()}`,
+      });
+    }
+    fullMessages.push(...normalizedMessages);
+
+    return await this.streamChat(fullMessages, onData);
+  }
+
+  /**
    * 更新配置
    */
   updateConfig(newConfig) {

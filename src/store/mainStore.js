@@ -26,6 +26,14 @@ export const useMainStore = defineStore('main', {
     // execId -> { stdoutBuf: string, stderrBuf: string, timer: any, ended: boolean, pendingCode: number|null }
     terminalStreams: {},
     terminalHistoryMap: { [defaultTerminalKey]: [] },
+    // AI 多轮对话（按连接隔离）
+    aiChatHistory: [],
+    aiChatHistoryMap: { [defaultTerminalKey]: [] },
+    // AI 上下文选项（注意：启用后会把相关信息发送给第三方模型服务）
+    aiAssistantOptions: {
+      includeFileContext: false,
+      includeTerminalContext: false,
+    },
     // DeepSeek AI 配置
     deepSeekConfig: {
       apiKey: '',
@@ -54,8 +62,20 @@ export const useMainStore = defineStore('main', {
       return this.terminalHistoryMap[key];
     },
 
+    ensureAIChatHistory(connectionId = this.selectedConnectionId) {
+      const key = this.getTerminalKey(connectionId);
+      if (!this.aiChatHistoryMap[key]) {
+        this.aiChatHistoryMap[key] = [];
+      }
+      return this.aiChatHistoryMap[key];
+    },
+
     syncTerminalHistory(connectionId = this.selectedConnectionId) {
       this.terminalHistory = this.ensureTerminalHistory(connectionId);
+    },
+
+    syncAIChatHistory(connectionId = this.selectedConnectionId) {
+      this.aiChatHistory = this.ensureAIChatHistory(connectionId);
     },
 
     updateTerminalHistory(connectionId, history) {
@@ -63,6 +83,22 @@ export const useMainStore = defineStore('main', {
       this.terminalHistoryMap[key] = history;
       if (this.getTerminalKey(this.selectedConnectionId) === key) {
         this.terminalHistory = history;
+      }
+    },
+
+    updateAIChatHistory(connectionId, history) {
+      const key = this.getTerminalKey(connectionId);
+      this.aiChatHistoryMap[key] = history;
+      if (this.getTerminalKey(this.selectedConnectionId) === key) {
+        this.aiChatHistory = history;
+      }
+    },
+
+    clearAIChatHistory(connectionId = this.selectedConnectionId) {
+      const key = this.getTerminalKey(connectionId);
+      this.aiChatHistoryMap[key] = [];
+      if (this.getTerminalKey(this.selectedConnectionId) === key) {
+        this.aiChatHistory = [];
       }
     },
 
@@ -81,6 +117,7 @@ export const useMainStore = defineStore('main', {
     setActiveConnection(connectionId) {
       this.selectedConnectionId = connectionId || null;
       this.syncTerminalHistory(connectionId);
+      this.syncAIChatHistory(connectionId);
     },
 
     normalizeError(error) {
@@ -127,6 +164,7 @@ export const useMainStore = defineStore('main', {
         this.activeSyncIds = [];
       }
       delete this.terminalHistoryMap[this.getTerminalKey(id)];
+      delete this.aiChatHistoryMap[this.getTerminalKey(id)];
       await this.loadConnections();
     },
 

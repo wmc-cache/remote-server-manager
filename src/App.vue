@@ -89,7 +89,6 @@
           </section>
           <section v-else-if="activeTab === 1" class="detail__grid detail__grid--vertical detail__tab-panel">
             <TerminalPanel :history="store.terminalHistory" @execute="store.executeCommand" />
-            <AIFileFinder v-if="store.deepSeekConfig.enabled" />
           </section>
           <section v-else class="detail__grid detail__grid--vertical detail__tab-panel">
             <SyncConfigList
@@ -124,7 +123,6 @@ import ThemePicker from './components/ThemePicker.vue';
 import FilePreview from './components/FilePreview.vue';
 import PreviewFullscreen from './components/PreviewFullscreen.vue';
 import AIConfig from './components/AIConfig.vue';
-import AIFileFinder from './components/AIFileFinder.vue';
 import Tabs from './components/Tabs.vue';
 
 const store = useMainStore();
